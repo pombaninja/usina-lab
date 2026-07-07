@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
-import { calcularIndicadoresDia, saldoTanque, type LeituraTanque } from '../../lib/calculos/insumos'
+import { calcularIndicadoresDia, divergenciaContinuidade, type LeituraTanque } from '../../lib/calculos/insumos'
 import { fmt } from '../../lib/formato'
 
 interface Tanque {
@@ -171,6 +171,8 @@ export default function InsumosDiaPage() {
       setErro('')
       qc.invalidateQueries({ queryKey: ['insumos-lancamento', data] })
       qc.invalidateQueries({ queryKey: ['insumos-entradas-dia', data] })
+      // sem sufixo de data: o lançamento de hoje pode ser o "dia anterior" prefill de outra data em cache
+      qc.invalidateQueries({ queryKey: ['insumos-lancamento-anterior'] })
     },
     onError: (e: Error) => { setErro(e.message); setSucesso(false) },
   })
@@ -199,7 +201,7 @@ export default function InsumosDiaPage() {
         <table className="w-full text-sm">
           <thead><tr className="text-left border-b">
             <th className="p-2">Tanque</th><th>Volume inicial</th><th>Volume final</th><th>Deslocado</th>
-            <th>Entradas do dia</th><th>Saldo (físico)</th><th>Saldo teórico</th>
+            <th>Entradas do dia</th><th>Saldo (físico)</th>
             <th>Horím. ligou</th><th>Horím. desligou</th><th>L/h</th><th />
           </tr></thead>
           <tbody>{(tanques ?? []).map(t => {
@@ -208,34 +210,42 @@ export default function InsumosDiaPage() {
             const vf = l.volumeFinal !== '' ? n(l.volumeFinal) : null
             const deslocado = vi != null && vf != null ? vi - vf : null
             const entradas = entradasDia?.[t.id] ?? 0
-            const saldoTeorico = vi != null ? saldoTanque(vi, entradas, deslocado ?? 0) : null
-            const divergencia = vf != null && saldoTeorico != null ? Math.abs(vf - saldoTeorico) : null
+            const div = divergenciaContinuidade(vi, leiturasOntem?.[t.id], entradas)
+            const temDivergenciaContinuidade = div !== null && Math.abs(div) > 0.01
             const litrosHora = t.tem_horimetro && calc?.ok ? calc.ind.caldeiraLitrosHora : null
             const abaixoMinimo = vf != null && vf < t.estoque_minimo
             return (
-              <tr key={t.id} className="border-b">
-                <td className="p-2 font-semibold whitespace-nowrap">{t.codigo} — {t.nome}</td>
-                <td><input className="border rounded p-1 w-24" type="number" step="any" value={l.volumeInicial}
-                      onChange={e => atualizarLinha(t.id, 'volumeInicial', e.target.value)} /></td>
-                <td><input className="border rounded p-1 w-24" type="number" step="any" value={l.volumeFinal}
-                      onChange={e => atualizarLinha(t.id, 'volumeFinal', e.target.value)} /></td>
-                <td className="p-2">{deslocado != null ? fmt(deslocado, 3) : ''}</td>
-                <td className="p-2">{fmt(entradas, 3)}</td>
-                <td className="p-2">{vf != null ? fmt(vf, 3) : ''}</td>
-                <td className={`p-2 ${divergencia != null && divergencia > 0.01 ? 'bg-amber-100 text-amber-800 font-semibold' : ''}`}>
-                  {saldoTeorico != null ? fmt(saldoTeorico, 3) : ''}
-                </td>
-                <td>{t.tem_horimetro
-                  ? <input className="border rounded p-1 w-24" type="number" step="any" value={l.horimetroLigou}
-                      onChange={e => atualizarLinha(t.id, 'horimetroLigou', e.target.value)} />
-                  : <span className="text-slate-300">—</span>}</td>
-                <td>{t.tem_horimetro
-                  ? <input className="border rounded p-1 w-24" type="number" step="any" value={l.horimetroDesligou}
-                      onChange={e => atualizarLinha(t.id, 'horimetroDesligou', e.target.value)} />
-                  : <span className="text-slate-300">—</span>}</td>
-                <td className="p-2">{litrosHora != null ? fmt(litrosHora, 2) : ''}</td>
-                <td className="p-2">{abaixoMinimo && <span className="bg-red-600 text-white rounded-full px-2 py-0.5 text-xs font-bold">ABAIXO DO MÍNIMO</span>}</td>
-              </tr>
+              <Fragment key={t.id}>
+                <tr className="border-b">
+                  <td className="p-2 font-semibold whitespace-nowrap">{t.codigo} — {t.nome}</td>
+                  <td><input className="border rounded p-1 w-24" type="number" step="any" value={l.volumeInicial}
+                        onChange={e => atualizarLinha(t.id, 'volumeInicial', e.target.value)} /></td>
+                  <td><input className="border rounded p-1 w-24" type="number" step="any" value={l.volumeFinal}
+                        onChange={e => atualizarLinha(t.id, 'volumeFinal', e.target.value)} /></td>
+                  <td className={`p-2 ${deslocado != null && deslocado < 0 ? 'text-red-600 font-bold' : ''}`}>
+                    {deslocado != null ? fmt(deslocado, 3) : ''}
+                  </td>
+                  <td className="p-2">{fmt(entradas, 3)}</td>
+                  <td className="p-2">{vf != null ? fmt(vf, 3) : ''}</td>
+                  <td>{t.tem_horimetro
+                    ? <input className="border rounded p-1 w-24" type="number" step="any" value={l.horimetroLigou}
+                        onChange={e => atualizarLinha(t.id, 'horimetroLigou', e.target.value)} />
+                    : <span className="text-slate-300">—</span>}</td>
+                  <td>{t.tem_horimetro
+                    ? <input className="border rounded p-1 w-24" type="number" step="any" value={l.horimetroDesligou}
+                        onChange={e => atualizarLinha(t.id, 'horimetroDesligou', e.target.value)} />
+                    : <span className="text-slate-300">—</span>}</td>
+                  <td className="p-2">{litrosHora != null ? fmt(litrosHora, 2) : ''}</td>
+                  <td className="p-2">{abaixoMinimo && <span className="bg-red-600 text-white rounded-full px-2 py-0.5 text-xs font-bold">ABAIXO DO MÍNIMO</span>}</td>
+                </tr>
+                {temDivergenciaContinuidade && (
+                  <tr className="border-b">
+                    <td colSpan={9} className="px-2 pb-2 text-amber-700 text-xs">
+                      Difere do fechamento de ontem em {fmt(div, 2)} — confira leitura ou registre a entrada
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
             )
           })}</tbody>
         </table>

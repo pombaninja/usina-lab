@@ -37,3 +37,17 @@ export function calcularIndicadoresDia(leituras: LeituraTanque[], producaoTon?: 
 export function saldoTanque(saldoAnterior: number, entradas: number, deslocadoDia: number): number {
   return saldoAnterior + entradas - deslocadoDia
 }
+
+/**
+ * Divergência de continuidade: o volume inicial de hoje deveria ser
+ * o fechamento de ontem mais as entradas do dia. Retorna a diferença
+ * (hoje − esperado) ou null quando faltam dados.
+ */
+export function divergenciaContinuidade(
+  volumeInicialHoje: number | null | undefined,
+  volumeFinalOntem: number | null | undefined,
+  entradasDia: number,
+): number | null {
+  if (volumeInicialHoje == null || volumeFinalOntem == null) return null
+  return volumeInicialHoje - (volumeFinalOntem + entradasDia)
+}

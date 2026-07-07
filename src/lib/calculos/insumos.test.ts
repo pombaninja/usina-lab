@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { calcularIndicadoresDia, saldoTanque } from './insumos'
+import { calcularIndicadoresDia, saldoTanque, divergenciaContinuidade } from './insumos'
 
 describe('indicadores de insumos — 13/11/2025 (golden da planilha)', () => {
   const leituras = [
@@ -30,4 +30,16 @@ describe('indicadores de insumos — 13/11/2025 (golden da planilha)', () => {
 
 describe('saldoTanque', () => {
   it('saldo anterior + entradas − deslocado', () => expect(saldoTanque(10, 5, 3)).toBeCloseTo(12))
+})
+
+describe('divergenciaContinuidade', () => {
+  it('inicial de hoje = fechamento de ontem + entradas → 0', () => {
+    expect(divergenciaContinuidade(15, 10, 5)).toBeCloseTo(0)
+  })
+  it('diferença real aparece com sinal', () => {
+    expect(divergenciaContinuidade(12, 10, 5)).toBeCloseTo(-3)
+  })
+  it('sem leitura de ontem → null', () => {
+    expect(divergenciaContinuidade(12, null, 5)).toBeNull()
+  })
 })
