@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { calcularIndicadoresDia, divergenciaContinuidade, type LeituraTanque } from '../../lib/calculos/insumos'
 import { fmt } from '../../lib/formato'
+import { hojeLocal } from '../../lib/datas'
 
 interface Tanque {
   id: string; codigo: string; nome: string
@@ -15,11 +16,10 @@ interface LinhaForm {
 }
 const linhaVazia: LinhaForm = { volumeInicial: '', volumeFinal: '', horimetroLigou: '', horimetroDesligou: '' }
 const n = (s: string) => (s === '' ? NaN : Number(s))
-const hoje = () => new Date().toISOString().slice(0, 10)
 
 export default function InsumosDiaPage() {
   const qc = useQueryClient()
-  const [data, setData] = useState(hoje())
+  const [data, setData] = useState(hojeLocal())
   const [linhas, setLinhas] = useState<Record<string, LinhaForm>>({})
   const [producaoTon, setProducaoTon] = useState('')
   const [producaoDescricao, setProducaoDescricao] = useState('')

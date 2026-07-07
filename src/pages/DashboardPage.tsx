@@ -4,17 +4,12 @@ import { supabase } from '../lib/supabase'
 import { fmt } from '../lib/formato'
 import { useAuth } from '../lib/auth'
 import { calcularAgregadoMes, saldoTanque, type LancamentoMes, type TanqueMin } from '../lib/calculos/insumos'
+import { limitesDoMes, mesAtualLocal } from '../lib/datas'
 
 interface TanqueAtivo { id: string; codigo: string; nome: string; unidade: string; estoque_minimo: number }
 
-function mesAtualLimites() {
-  const mes = new Date().toISOString().slice(0, 7)
-  const [ano, mesNum] = mes.split('-').map(Number)
-  return { inicio: `${mes}-01`, fim: new Date(ano, mesNum, 1).toISOString().slice(0, 10) }
-}
-
 function SecaoInsumos() {
-  const { inicio, fim } = mesAtualLimites()
+  const { inicio, fimExclusivo: fim } = limitesDoMes(mesAtualLocal())
   const card = 'bg-white p-6 rounded-xl shadow'
 
   const { data: tanquesAtivos } = useQuery({

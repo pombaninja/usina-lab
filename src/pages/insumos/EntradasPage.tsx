@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { fmt } from '../../lib/formato'
+import { hojeLocal, limitesDoMes, mesAtualLocal } from '../../lib/datas'
 
 interface Tanque { id: string; codigo: string; nome: string; unidade: string }
 interface Entrada {
@@ -10,13 +11,11 @@ interface Entrada {
   tanques: Tanque | null
 }
 
-const hoje = () => new Date().toISOString().slice(0, 10)
-const mesAtual = () => new Date().toISOString().slice(0, 7)
 const MAX_BYTES = 10 * 1024 * 1024
 
 export default function EntradasPage() {
   const qc = useQueryClient()
-  const [data, setData] = useState(hoje())
+  const [data, setData] = useState(hojeLocal())
   const [tanqueId, setTanqueId] = useState('')
   const [quantidade, setQuantidade] = useState('')
   const [fornecedor, setFornecedor] = useState('')
@@ -25,7 +24,7 @@ export default function EntradasPage() {
   const [observacoes, setObservacoes] = useState('')
   const [erro, setErro] = useState('')
   const [sucesso, setSucesso] = useState(false)
-  const [mes, setMes] = useState(mesAtual())
+  const [mes, setMes] = useState(mesAtualLocal())
   const [erroDownload, setErroDownload] = useState('')
 
   const { data: tanques } = useQuery({
@@ -40,12 +39,10 @@ export default function EntradasPage() {
   const { data: entradas } = useQuery({
     queryKey: ['insumos-entradas-mes', mes],
     queryFn: async () => {
-      const inicio = `${mes}-01`
-      const [ano, mesNum] = mes.split('-').map(Number)
-      const fim = new Date(ano, mesNum, 1).toISOString().slice(0, 10)
+      const { inicio, fimExclusivo } = limitesDoMes(mes)
       const { data: rows, error } = await supabase.from('insumos_entradas')
         .select('*, tanques(id, codigo, nome, unidade)')
-        .gte('data', inicio).lt('data', fim)
+        .gte('data', inicio).lt('data', fimExclusivo)
         .order('data', { ascending: false })
       if (error) throw error
       return (rows ?? []) as Entrada[]

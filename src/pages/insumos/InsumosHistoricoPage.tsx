@@ -3,20 +3,13 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { calcularAgregadoMes, type LancamentoMes } from '../../lib/calculos/insumos'
 import { fmt } from '../../lib/formato'
+import { limitesDoMes, mesAtualLocal } from '../../lib/datas'
 
 interface TanqueTodo { id: string; codigo: string; nome: string; produto: 'cap' | 'oleo_queima' | 'oleo_termico'; unidade: string }
 
-const mesAtual = () => new Date().toISOString().slice(0, 7)
-function limitesDoMes(mes: string): { inicio: string; fim: string } {
-  const [ano, mesNum] = mes.split('-').map(Number)
-  const inicio = `${mes}-01`
-  const fim = new Date(ano, mesNum, 1).toISOString().slice(0, 10)
-  return { inicio, fim }
-}
-
 export default function InsumosHistoricoPage() {
-  const [mes, setMes] = useState(mesAtual())
-  const { inicio, fim } = limitesDoMes(mes)
+  const [mes, setMes] = useState(mesAtualLocal())
+  const { inicio, fimExclusivo: fim } = limitesDoMes(mes)
 
   const { data: tanques } = useQuery({
     queryKey: ['tanques-todos'],
