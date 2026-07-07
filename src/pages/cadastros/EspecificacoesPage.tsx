@@ -3,13 +3,15 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import Crud from '../../components/Crud'
 
-function SubTabela({ especId, tabela, titulo, campos }: {
+function SubTabela({ especId, tabela, titulo, campos, obrigatorios }: {
   especId: string; tabela: 'especificacao_peneiras' | 'especificacao_parametros'
   titulo: string
-  campos: { nome: string; rotulo: string; numero?: boolean }[]
+  campos: { nome: string; rotulo: string; numero?: boolean; opcoes?: { valor: string; rotulo: string }[] }[]
+  obrigatorios?: string[]
 }) {
   const qc = useQueryClient()
   const [form, setForm] = useState<Record<string, unknown>>({})
+  const [erro, setErro] = useState<string>('')
   const { data: linhas } = useQuery({
     queryKey: [tabela, especId],
     queryFn: async () => {
@@ -21,10 +23,20 @@ function SubTabela({ especId, tabela, titulo, campos }: {
   })
   const inserir = useMutation({
     mutationFn: async () => {
+      setErro('')
+      if (obrigatorios && obrigatorios.length > 0) {
+        for (const campo of obrigatorios) {
+          const valor = form[campo]
+          if (valor === null || valor === undefined || valor === '') {
+            throw new Error('Preencha os campos obrigatórios')
+          }
+        }
+      }
       const { error } = await supabase.from(tabela).insert({ ...form, especificacao_id: especId })
       if (error) throw error
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: [tabela, especId] }); setForm({}) },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: [tabela, especId] }); setForm({}); setErro('') },
+    onError: (err: Error) => { setErro(err.message) },
   })
   const excluir = useMutation({
     mutationFn: async (id: string) => { await supabase.from(tabela).delete().eq('id', id) },
@@ -34,13 +46,25 @@ function SubTabela({ especId, tabela, titulo, campos }: {
     <div className="bg-white p-4 rounded-xl shadow">
       <h3 className="font-semibold mb-2">{titulo}</h3>
       <div className="flex gap-2 mb-3 flex-wrap">
-        {campos.map(c => (
-          <input key={c.nome} className="border rounded p-2 w-36" placeholder={c.rotulo}
-                 type={c.numero ? 'number' : 'text'} step="any" value={String(form[c.nome] ?? '')}
-                 onChange={e => setForm({ ...form, [c.nome]: c.numero ? Number(e.target.value) : e.target.value })} />
-        ))}
+        {campos.map(c => {
+          if (c.opcoes) {
+            return (
+              <select key={c.nome} className="border rounded p-2 w-36" value={String(form[c.nome] ?? '')}
+                      onChange={e => setForm({ ...form, [c.nome]: e.target.value })}>
+                <option value="">Selecione…</option>
+                {c.opcoes.map(o => <option key={o.valor} value={o.valor}>{o.rotulo}</option>)}
+              </select>
+            )
+          }
+          return (
+            <input key={c.nome} className="border rounded p-2 w-36" placeholder={c.rotulo}
+                   type={c.numero ? 'number' : 'text'} step="any" value={String(form[c.nome] ?? '')}
+                   onChange={e => setForm({ ...form, [c.nome]: c.numero ? (e.target.value === '' ? null : Number(e.target.value)) : e.target.value })} />
+          )
+        })}
         <button className="bg-blue-700 text-white rounded px-3" onClick={() => inserir.mutate()}>+</button>
       </div>
+      {erro && <p className="text-red-600 text-sm mb-2">{erro}</p>}
       <table className="w-full text-sm">
         <thead><tr className="text-left border-b">{campos.map(c => <th key={c.nome} className="p-2">{c.rotulo}</th>)}<th /></tr></thead>
         <tbody>{(linhas ?? []).map((l: Record<string, unknown> & { id: string }) => (
@@ -84,12 +108,24 @@ export default function EspecificacoesPage() {
             { nome: 'peneira', rotulo: 'Peneira' }, { nome: 'abertura_mm', rotulo: 'Abertura (mm)', numero: true },
             { nome: 'passante_min', rotulo: '% passante mín', numero: true }, { nome: 'passante_max', rotulo: '% passante máx', numero: true },
             { nome: 'tolerancia_trabalho', rotulo: 'Tolerância ±', numero: true },
-          ]} />
+          ]}
+          obrigatorios={['peneira', 'abertura_mm', 'passante_min', 'passante_max']} />
         <SubTabela especId={selecionada} tabela="especificacao_parametros" titulo="Parâmetros (Marshall, RTD…)"
           campos={[
-            { nome: 'parametro', rotulo: 'Parâmetro' }, { nome: 'valor_min', rotulo: 'Mín', numero: true },
+            { nome: 'parametro', rotulo: 'Parâmetro', opcoes: [
+              { valor: 'vazios', rotulo: 'vazios — Vazios (%)' },
+              { valor: 'rbv', rotulo: 'rbv — R.B.V. (%)' },
+              { valor: 'vam', rotulo: 'vam — V.A.M. (%)' },
+              { valor: 'estabilidade', rotulo: 'estabilidade — Estabilidade (kgf)' },
+              { valor: 'fluencia_mm', rotulo: 'fluencia_mm — Fluência (mm)' },
+              { valor: 'rtd', rotulo: 'rtd — RTD (MPa)' },
+              { valor: 'filler_ligante', rotulo: 'filler_ligante — Relação Fíler/Ligante' },
+              { valor: 'teor_ligante', rotulo: 'teor_ligante — Teor de Ligante (%)' },
+            ] },
+            { nome: 'valor_min', rotulo: 'Mín', numero: true },
             { nome: 'valor_max', rotulo: 'Máx', numero: true }, { nome: 'unidade', rotulo: 'Unidade' },
-          ]} />
+          ]}
+          obrigatorios={['parametro']} />
       </>}
     </div>
   )
