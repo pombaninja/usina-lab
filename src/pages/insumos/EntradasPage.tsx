@@ -26,6 +26,7 @@ export default function EntradasPage() {
   const [sucesso, setSucesso] = useState(false)
   const [mes, setMes] = useState(mesAtualLocal())
   const [erroDownload, setErroDownload] = useState('')
+  const [erroExcluir, setErroExcluir] = useState('')
 
   const { data: tanques } = useQuery({
     queryKey: ['tanques-ativos'],
@@ -110,6 +111,28 @@ export default function EntradasPage() {
     else window.location.href = assinada.signedUrl
   }
 
+  const excluir = useMutation({
+    mutationFn: async (entrada: Entrada) => {
+      if (entrada.nf_anexo_path) {
+        const { error: errRemove } = await supabase.storage.from('notas-fiscais').remove([entrada.nf_anexo_path])
+        if (errRemove) throw new Error('Falha ao remover o anexo da NF: ' + errRemove.message)
+      }
+      const { error: errDelete } = await supabase.from('insumos_entradas').delete().eq('id', entrada.id)
+      if (errDelete) throw new Error('Falha ao excluir a entrada: ' + errDelete.message)
+    },
+    onSuccess: () => {
+      setErroExcluir('')
+      qc.invalidateQueries({ queryKey: ['insumos-entradas-mes'] })
+      qc.invalidateQueries({ queryKey: ['insumos-entradas-dia'] })
+    },
+    onError: (e: Error) => setErroExcluir(e.message),
+  })
+
+  const excluirEntrada = (entrada: Entrada) => {
+    if (!window.confirm('Excluir esta entrada? O anexo da NF também será removido.')) return
+    excluir.mutate(entrada)
+  }
+
   const inp = 'border rounded p-2 w-full'
 
   return (
@@ -155,9 +178,10 @@ export default function EntradasPage() {
             <input className="border rounded p-2 ml-2" type="month" value={mes} onChange={e => setMes(e.target.value)} /></label>
         </div>
         {erroDownload && <p className="text-red-600 text-sm mb-2">{erroDownload}</p>}
+        {erroExcluir && <p className="text-red-600 text-sm mb-2">{erroExcluir}</p>}
         <table className="w-full text-sm">
           <thead><tr className="text-left border-b">
-            <th className="p-2">Data</th><th>Tanque</th><th>Quantidade</th><th>Fornecedor</th><th>NF</th><th />
+            <th className="p-2">Data</th><th>Tanque</th><th>Quantidade</th><th>Fornecedor</th><th>NF</th><th /><th />
           </tr></thead>
           <tbody>{(entradas ?? []).map(e => (
             <tr key={e.id} className="border-b">
@@ -172,6 +196,12 @@ export default function EntradasPage() {
                     Baixar NF
                   </button>
                 )}
+              </td>
+              <td className="p-2">
+                <button type="button" className="text-red-600 underline disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={excluir.isPending} onClick={() => excluirEntrada(e)}>
+                  Excluir
+                </button>
               </td>
             </tr>
           ))}</tbody>

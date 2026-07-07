@@ -144,11 +144,18 @@ export default function InsumosDiaPage() {
         .single()
       if (errLanc) throw new Error('Falha ao salvar o lançamento do dia: ' + errLanc.message)
 
+      const tanquesComLeituraExistente = new Set(
+        ((lancamento?.insumos_leituras ?? []) as { tanque_id: string }[]).map(l => l.tanque_id),
+      )
+
       const registros = (tanques ?? [])
         .map(t => {
           const l = linhas[t.id] ?? linhaVazia
           const algumPreenchido = l.volumeInicial !== '' || l.volumeFinal !== '' || l.horimetroLigou !== '' || l.horimetroDesligou !== ''
-          if (!algumPreenchido) return null
+          const tinhaLeituraExistente = tanquesComLeituraExistente.has(t.id)
+          // uma leitura existente que foi totalmente zerada no formulário precisa persistir
+          // nulos explícitos — se apenas pularmos, o upsert não atualiza a linha e ela "ressuscita"
+          if (!algumPreenchido && !tinhaLeituraExistente) return null
           return {
             lancamento_id: lanc.id,
             tanque_id: t.id,
@@ -156,6 +163,7 @@ export default function InsumosDiaPage() {
             volume_final: l.volumeFinal !== '' ? n(l.volumeFinal) : null,
             horimetro_ligou: l.horimetroLigou !== '' ? n(l.horimetroLigou) : null,
             horimetro_desligou: l.horimetroDesligou !== '' ? n(l.horimetroDesligou) : null,
+            ...(!algumPreenchido && tinhaLeituraExistente ? { observacoes: null } : {}),
           }
         })
         .filter((r): r is NonNullable<typeof r> => r !== null)

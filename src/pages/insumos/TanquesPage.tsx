@@ -5,7 +5,7 @@ export default function TanquesPage() {
     colunas={[
       { nome: 'codigo', rotulo: 'Código' }, { nome: 'nome', rotulo: 'Nome' },
       { nome: 'produto', rotulo: 'Produto' }, { nome: 'unidade', rotulo: 'Unidade' },
-      { nome: 'estoque_minimo', rotulo: 'Estoque mínimo' },
+      { nome: 'estoque_minimo', rotulo: 'Estoque mínimo' }, { nome: 'ativa', rotulo: 'Ativa' },
     ]}
     campos={[
       { nome: 'codigo', rotulo: 'Código', tipo: 'texto', obrigatorio: true },
@@ -21,5 +21,6 @@ export default function TanquesPage() {
       { nome: 'capacidade', rotulo: 'Capacidade', tipo: 'numero' },
       { nome: 'estoque_minimo', rotulo: 'Estoque mínimo', tipo: 'numero', obrigatorio: true },
       { nome: 'tem_horimetro', rotulo: 'Tem horímetro', tipo: 'checkbox' },
+      { nome: 'ativa', rotulo: 'Ativa', tipo: 'checkbox' },
     ]} />
 }
