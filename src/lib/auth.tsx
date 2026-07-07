@@ -14,15 +14,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [perfis, setPerfis] = useState<Record<string, string>>({})
   const [carregando, setCarregando] = useState(true)
+  const [sessaoResolvida, setSessaoResolvida] = useState(false)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setUser(data.session?.user ?? null))
+    supabase.auth.getSession().then(({ data }) => {
+      setUser(data.session?.user ?? null)
+      setSessaoResolvida(true)
+    })
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setUser(s?.user ?? null))
     return () => sub.subscription.unsubscribe()
   }, [])
 
   useEffect(() => {
-    if (!user) { setPerfis({}); setCarregando(false); return }
+    if (!user) { setPerfis({}); if (sessaoResolvida) setCarregando(false); return }
     let atual = true
     supabase.from('perfis_acesso').select('modulo, papel').then(({ data, error }) => {
       if (!atual) return
@@ -35,7 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setCarregando(false)
     })
     return () => { atual = false }
-  }, [user])
+  }, [user, sessaoResolvida])
 
   return <Ctx.Provider value={{ user, carregando, perfis, sair: () => supabase.auth.signOut().then(() => {}) }}>{children}</Ctx.Provider>
 }

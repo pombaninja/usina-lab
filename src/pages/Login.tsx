@@ -1,7 +1,10 @@
 import { useState } from 'react'
+import { Navigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../lib/auth'
 
 export default function Login() {
+  const { user } = useAuth()
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
   const [erro, setErro] = useState('')
@@ -12,6 +15,8 @@ export default function Login() {
     const { error } = await supabase.auth.signInWithPassword({ email, password: senha })
     if (error) setErro('E-mail ou senha inválidos')
   }
+
+  if (user) return <Navigate to="/" replace />
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-100">
