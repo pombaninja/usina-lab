@@ -14,6 +14,7 @@ import EnsaiosListaPage from './pages/EnsaiosListaPage'
 import EnsaioCauqPage from './pages/EnsaioCauqPage'
 import EnsaioDetalhePage from './pages/EnsaioDetalhePage'
 import LaudosListaPage from './pages/LaudosListaPage'
+import LaudoImprimirPage from './pages/LaudoImprimirPage'
 
 const qc = new QueryClient()
 
@@ -37,6 +38,7 @@ export default function App() {
               <Route path="/ensaios/novo" element={<EnsaioCauqPage />} />
               <Route path="/ensaios/:id" element={<EnsaioDetalhePage />} />
               <Route path="/laudos" element={<LaudosListaPage />} />
+              <Route path="/laudos/:id/imprimir" element={<LaudoImprimirPage />} />
             </Route>
           </Routes>
         </BrowserRouter>
