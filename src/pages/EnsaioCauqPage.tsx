@@ -7,6 +7,7 @@ import { calcularMarshall } from '../lib/calculos/marshall'
 import { teorRotarex, gmmRice } from '../lib/calculos/teorBetume'
 import { calcularRtd } from '../lib/calculos/rtd'
 import { avaliarParametros } from '../lib/calculos/avaliacao'
+import { fmt } from '../lib/formato'
 
 interface CpForm { pesoAr: string; pesoImerso: string; leituraEstab: string; fator: string; fluencia: string }
 const cpVazio: CpForm = { pesoAr: '', pesoImerso: '', leituraEstab: '', fator: '', fluencia: '' }
@@ -227,19 +228,19 @@ export default function EnsaioCauqPage() {
                   <td key={k}><input className="border rounded p-1 w-28" type="number" step="any" value={c[k]}
                         onChange={e => setCps(cps.map((x, j) => j === i ? { ...x, [k]: e.target.value } : x))} /></td>
                 ))}
-                <td className="p-2">{preenchido && r ? r.densidadeAparente.toFixed(3) : ''}</td>
-                <td className="p-2">{preenchido && r ? r.vazios.toFixed(2) : ''}</td>
-                <td className="p-2">{preenchido && r ? r.estabilidadeCorrigida.toFixed(0) : ''}</td>
+                <td className="p-2">{preenchido && r ? fmt(r.densidadeAparente, 3) : ''}</td>
+                <td className="p-2">{preenchido && r ? fmt(r.vazios, 2) : ''}</td>
+                <td className="p-2">{preenchido && r ? fmt(r.estabilidadeCorrigida, 0) : ''}</td>
               </tr>
             )
           })}</tbody>
         </table>
         {calc?.ok && calc.marshallRes && (
           <p className="mt-2 text-sm text-slate-700">
-            Médias — Vazios: <b>{calc.marshallRes.medias.vazios.toFixed(2)}%</b> · VAM: <b>{calc.marshallRes.medias.vam.toFixed(1)}</b> ·
-            RBV: <b>{calc.marshallRes.medias.rbv.toFixed(1)}%</b> · Estabilidade: <b>{calc.marshallRes.medias.estabilidadeCorrigida.toFixed(0)} kgf</b> ·
-            Fluência: <b>{calc.marshallRes.medias.fluenciaMm.toFixed(1)} mm</b>
-            {calc.marshallRes.relacaoFillerLigante !== undefined && <> · Fíler/Ligante: <b>{calc.marshallRes.relacaoFillerLigante.toFixed(2)}</b></>}
+            Médias — Vazios: <b>{fmt(calc.marshallRes.medias.vazios, 2)}%</b> · VAM: <b>{fmt(calc.marshallRes.medias.vam, 1)}</b> ·
+            RBV: <b>{fmt(calc.marshallRes.medias.rbv, 1)}%</b> · Estabilidade: <b>{fmt(calc.marshallRes.medias.estabilidadeCorrigida, 0)} kgf</b> ·
+            Fluência: <b>{fmt(calc.marshallRes.medias.fluenciaMm, 1)} mm</b>
+            {calc.marshallRes.relacaoFillerLigante !== undefined && <> · Fíler/Ligante: <b>{fmt(calc.marshallRes.relacaoFillerLigante, 2)}</b></>}
           </p>
         )}
       </section>
@@ -258,8 +259,8 @@ export default function EnsaioCauqPage() {
                 <td className="p-2">{l.peneira}</td><td>{l.abertura}</td>
                 <td><input className="border rounded p-1 w-28" type="number" step="any" value={l.retido}
                       onChange={e => setGran({ ...gran, leituras: gran.leituras.map((x, j) => j === i ? { ...x, retido: e.target.value } : x) })} /></td>
-                <td className="p-2">{linha ? linha.pctPassando.toFixed(1) : ''}</td>
-                <td className="p-2">{linha?.trabMin !== undefined ? `${linha.trabMin.toFixed(1)} – ${linha.trabMax!.toFixed(1)}` : ''}</td>
+                <td className="p-2">{linha ? fmt(linha.pctPassando, 1) : ''}</td>
+                <td className="p-2">{linha?.trabMin !== undefined ? `${fmt(linha.trabMin, 1)} – ${fmt(linha.trabMax, 1)}` : ''}</td>
                 <td className="p-2">{linha?.conforme === false && <span className="text-red-600 font-bold">✗</span>}
                     {linha?.conforme === true && <span className="text-green-600 font-bold">✓</span>}</td>
               </tr>
@@ -275,7 +276,7 @@ export default function EnsaioCauqPage() {
             <label className="block">Amostra com betume (g)<input className={inp} type="number" step="any" value={teor.comBetume} onChange={e => setTeor({ ...teor, comBetume: e.target.value })} /></label>
             <label className="block">Amostra sem betume (g)<input className={inp} type="number" step="any" value={teor.semBetume} onChange={e => setTeor({ ...teor, semBetume: e.target.value })} /></label>
             <label className="block">Umidade (%)<input className={inp} type="number" step="any" value={teor.umidade} onChange={e => setTeor({ ...teor, umidade: e.target.value })} /></label>
-            {calc?.ok && <p>Teor de betume: <b>{calc.teorPct.toFixed(2)}%</b></p>}
+            {calc?.ok && <p>Teor de betume: <b>{fmt(calc.teorPct, 2)}%</b></p>}
           </div>
         </div>
         <div>
@@ -285,7 +286,7 @@ export default function EnsaioCauqPage() {
             <label className="block">Frasco + água (g)<input className={inp} type="number" step="any" value={rice.frascoAgua} onChange={e => setRice({ ...rice, frascoAgua: e.target.value })} /></label>
             <label className="block">Frasco + amostra + água (g)<input className={inp} type="number" step="any" value={rice.frascoAmostraAgua} onChange={e => setRice({ ...rice, frascoAmostraAgua: e.target.value })} /></label>
             <label className="block">Fator de temperatura<input className={inp} type="number" step="any" value={rice.fator} onChange={e => setRice({ ...rice, fator: e.target.value })} /></label>
-            {calc?.ok && <p>Gmm em uso: <b>{calc.gmm.toFixed(4)}</b> {rice.pesoAmostra ? '(Rice do dia)' : '(de projeto)'}</p>}
+            {calc?.ok && <p>Gmm em uso: <b>{fmt(calc.gmm, 4)}</b> {rice.pesoAmostra ? '(Rice do dia)' : '(de projeto)'}</p>}
           </div>
         </div>
       </section>
@@ -301,11 +302,11 @@ export default function EnsaioCauqPage() {
                 <td key={k}><input className="border rounded p-1 w-24" type="number" step="any" value={c[k]}
                       onChange={e => setRtdCps(rtdCps.map((x, j) => j === i ? { ...x, [k]: e.target.value } : x))} /></td>
               ))}
-              <td className="p-2">{calc?.ok ? (calc.rtdRes?.rtdMpa[rtdCps.filter((x, j) => j < i && x.leitura).length]?.toFixed(3) ?? '') : ''}</td>
+              <td className="p-2">{calc?.ok && calc.rtdRes?.rtdMpa[rtdCps.filter((x, j) => j < i && x.leitura).length] !== undefined ? fmt(calc.rtdRes.rtdMpa[rtdCps.filter((x, j) => j < i && x.leitura).length], 3) : ''}</td>
             </tr>
           ))}</tbody>
         </table>
-        {calc?.ok && calc.rtdRes && <p className="text-sm mt-2">RTD média: <b>{calc.rtdRes.media.toFixed(3)} MPa</b></p>}
+        {calc?.ok && calc.rtdRes && <p className="text-sm mt-2">RTD média: <b>{fmt(calc.rtdRes.media, 3)} MPa</b></p>}
       </section>
 
       {calc?.ok && calc.aval.avaliacoes.length > 0 && (
@@ -315,7 +316,7 @@ export default function EnsaioCauqPage() {
             <thead><tr className="text-left border-b"><th className="p-2">Parâmetro</th><th>Obtido</th><th>Especificado</th><th>Situação</th></tr></thead>
             <tbody>{calc.aval.avaliacoes.map(a => (
               <tr key={a.parametro} className="border-b">
-                <td className="p-2">{a.parametro}</td><td>{a.valor.toFixed(2)}</td>
+                <td className="p-2">{a.parametro}</td><td>{fmt(a.valor, 2)}</td>
                 <td>{a.min ?? '—'} a {a.max ?? '—'}</td>
                 <td className={a.conforme ? 'text-green-600 font-semibold' : 'text-red-600 font-semibold'}>{a.conforme ? 'Conforme' : 'NÃO CONFORME'}</td>
               </tr>
@@ -329,7 +330,7 @@ export default function EnsaioCauqPage() {
       {erro && <p className="text-red-600">{erro}</p>}
       {!calc?.ok && <p className="text-amber-700">Preencha os dados do ensaio antes de salvar</p>}
       <button className="bg-blue-700 text-white rounded px-6 py-3 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={!calc?.ok} onClick={() => salvar.mutate()}>Salvar Ensaio</button>
+              disabled={!calc?.ok || salvar.isPending} onClick={() => salvar.mutate()}>Salvar Ensaio</button>
     </div>
   )
 }

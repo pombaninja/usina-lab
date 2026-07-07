@@ -13,6 +13,9 @@ export function calcularGranulometria(
   curvaProjeto?: Record<string, number>,
 ): { linhas: LinhaGranulometria[]; conforme: boolean } {
   if (pesoTotal <= 0) throw new Error('Peso total deve ser maior que zero')
+  if (leituras.some(l => l.retidoAcum > pesoTotal + 1e-9)) {
+    throw new Error('Peso retido acumulado maior que o peso total da amostra')
+  }
   let conformeGeral = true
   const linhas = leituras.map((l) => {
     const pctRetidaAcum = (l.retidoAcum / pesoTotal) * 100

@@ -2,6 +2,7 @@ import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth, podeNoModulo } from '../lib/auth'
+import { fmt } from '../lib/formato'
 
 interface Dosagem {
   nome: string
@@ -140,25 +141,25 @@ export default function EnsaioDetalhePage() {
       {r?.marshall && (
         <section className="bg-white p-4 rounded-xl shadow text-sm">
           <h2 className="font-semibold mb-2">Resultados Marshall (médias)</h2>
-          <p>Vazios: <b>{r.marshall.medias.vazios.toFixed(2)}%</b> · VAM: <b>{r.marshall.medias.vam.toFixed(1)}</b> ·
-             RBV: <b>{r.marshall.medias.rbv.toFixed(1)}%</b> · Estabilidade: <b>{r.marshall.medias.estabilidadeCorrigida.toFixed(0)} kgf</b> ·
-             Teor: <b>{r.teor.toFixed(2)}%</b> · Gmm: <b>{r.gmm.toFixed(4)}</b></p>
+          <p>Vazios: <b>{fmt(r.marshall.medias.vazios, 2)}%</b> · VAM: <b>{fmt(r.marshall.medias.vam, 1)}</b> ·
+             RBV: <b>{fmt(r.marshall.medias.rbv, 1)}%</b> · Estabilidade: <b>{fmt(r.marshall.medias.estabilidadeCorrigida, 0)} kgf</b> ·
+             Teor: <b>{fmt(r.teor, 2)}%</b> · Gmm: <b>{fmt(r.gmm, 4)}</b></p>
         </section>
       )}
       <section className="bg-white p-4 rounded-xl shadow">
         <h2 className="font-semibold mb-3">Laudo</h2>
-        {!laudo && <button className="bg-blue-700 text-white rounded px-4 py-2" onClick={() => criarLaudo.mutate()}>Criar laudo (rascunho)</button>}
+        {!laudo && <button className="bg-blue-700 text-white rounded px-4 py-2 disabled:opacity-50" disabled={criarLaudo.isPending} onClick={() => criarLaudo.mutate()}>Criar laudo (rascunho)</button>}
         {laudo && (
           <div className="space-y-3 text-sm">
             <p>Número: <b>{laudo.numero}</b> · Revisão: <b>{laudo.revisao}</b> · Status: <b className="uppercase">{laudo.status}</b></p>
             <div className="flex gap-3">
               {laudo.status === 'rascunho' && podeAprovar &&
-                <button className="bg-amber-600 text-white rounded px-4 py-2" onClick={() => aprovar.mutate()}>Aprovar</button>}
+                <button className="bg-amber-600 text-white rounded px-4 py-2 disabled:opacity-50" disabled={aprovar.isPending} onClick={() => aprovar.mutate()}>Aprovar</button>}
               {laudo.status === 'aprovado' && podeAprovar &&
-                <button className="bg-green-700 text-white rounded px-4 py-2" onClick={() => emitir.mutate()}>Emitir (numera e trava)</button>}
+                <button className="bg-green-700 text-white rounded px-4 py-2 disabled:opacity-50" disabled={emitir.isPending} onClick={() => emitir.mutate()}>Emitir (numera e trava)</button>}
               {laudo.status === 'emitido' && <>
                 <Link to={`/laudos/${laudo.id}/imprimir`} className="bg-slate-800 text-white rounded px-4 py-2 inline-block">Imprimir / PDF</Link>
-                <button className="border rounded px-4 py-2" onClick={() => revisar.mutate()}>Criar revisão</button>
+                <button className="border rounded px-4 py-2 disabled:opacity-50" disabled={revisar.isPending} onClick={() => revisar.mutate()}>Criar revisão</button>
               </>}
             </div>
             {(criarLaudo.error || aprovar.error || emitir.error || revisar.error) &&

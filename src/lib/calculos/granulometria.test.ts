@@ -39,6 +39,10 @@ describe('granulometria - FX III Olimpia (golden)', () => {
     expect(passando[3]).toBeCloseTo(57.7704, 3)
     expect(passando[7]).toBeCloseTo(6.6709, 3)
   })
+  it('rejeita retido acumulado maior que o peso total', () => {
+    const invalidas = [{ peneira: 'N. 04', aberturaMm: 4.76, retidoAcum: 1000 }]
+    expect(() => calcularGranulometria(943.65, invalidas)).toThrow(/maior que o peso total/)
+  })
   it('faixa de trabalho = projeto ± tolerância, limitada à especificada', () => {
     const faixa = [
       { peneira: 'N. 04', passanteMin: 44, passanteMax: 72, toleranciaTrabalho: 5 },

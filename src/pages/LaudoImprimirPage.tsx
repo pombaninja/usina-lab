@@ -1,6 +1,7 @@
 import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { fmt } from '../lib/formato'
 import GraficoGranulometria from '../components/GraficoGranulometria'
 
 const ROTULOS: Record<string, string> = {
@@ -55,7 +56,7 @@ export default function LaudoImprimirPage() {
             <tbody>{s.avaliacoes.map((a: { parametro: string; valor: number; min: number | null; max: number | null; conforme: boolean }) => (
               <tr key={a.parametro}>
                 <td className="border p-1">{ROTULOS[a.parametro] ?? a.parametro}</td>
-                <td className="border p-1 text-center font-semibold">{a.valor.toFixed(2)}</td>
+                <td className="border p-1 text-center font-semibold">{fmt(a.valor, 2)}</td>
                 <td className="border p-1 text-center">{a.min ?? '—'} a {a.max ?? '—'}</td>
                 <td className={`border p-1 text-center font-bold ${a.conforme ? 'text-green-700' : 'text-red-700'}`}>{a.conforme ? 'CONFORME' : 'NÃO CONFORME'}</td>
               </tr>
@@ -73,8 +74,8 @@ export default function LaudoImprimirPage() {
               <tr key={l.peneira}>
                 <td className="border p-1 text-center">{l.peneira}</td>
                 <td className="border p-1 text-center">{l.aberturaMm}</td>
-                <td className="border p-1 text-center font-semibold">{l.pctPassando.toFixed(1)}</td>
-                <td className="border p-1 text-center">{l.trabMin !== undefined ? `${l.trabMin.toFixed(1)} – ${l.trabMax!.toFixed(1)}` : '—'}</td>
+                <td className="border p-1 text-center font-semibold">{fmt(l.pctPassando, 1)}</td>
+                <td className="border p-1 text-center">{l.trabMin !== undefined ? `${fmt(l.trabMin, 1)} – ${fmt(l.trabMax, 1)}` : '—'}</td>
                 <td className="border p-1 text-center">{l.espMin !== undefined ? `${l.espMin} – ${l.espMax}` : '—'}</td>
               </tr>
             ))}</tbody>

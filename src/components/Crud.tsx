@@ -76,7 +76,7 @@ export default function Crud({ tabela, titulo, colunas, campos, ordem = 'criado_
           </label>
         ))}
         <div className="flex gap-2">
-          <button className="bg-blue-700 text-white rounded px-4 py-2">{editando ? 'Atualizar' : 'Adicionar'}</button>
+          <button className="bg-blue-700 text-white rounded px-4 py-2 disabled:opacity-50" disabled={salvar.isPending}>{editando ? 'Atualizar' : 'Adicionar'}</button>
           {editando && <button type="button" className="border rounded px-3" onClick={() => { setEditando(null); setForm({}) }}>Cancelar</button>}
         </div>
         {erro && <p className="text-red-600 text-sm col-span-3">{erro}</p>}

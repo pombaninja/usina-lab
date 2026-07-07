@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { fmt } from '../lib/formato'
 
 export default function DashboardPage() {
   const { data } = useQuery({
@@ -33,7 +34,7 @@ export default function DashboardPage() {
         <div className={card}><p className="text-slate-500 text-sm">% Conformidade</p>
           <p className={`text-3xl font-bold ${data?.pctConforme !== null && (data?.pctConforme ?? 100) < 90 ? 'text-red-600' : 'text-green-700'}`}>
             {data === undefined ? '…' : data.pctConforme !== null ? `${data.pctConforme}%` : '—'}</p></div>
-        <div className={card}><p className="text-slate-500 text-sm">Teor de betume médio</p><p className="text-3xl font-bold">{data?.teorMedio ? `${data.teorMedio.toFixed(2)}%` : '—'}</p></div>
+        <div className={card}><p className="text-slate-500 text-sm">Teor de betume médio</p><p className="text-3xl font-bold">{data?.teorMedio ? `${fmt(data.teorMedio, 2)}%` : '—'}</p></div>
         <div className={card}><p className="text-slate-500 text-sm">Laudos emitidos</p><p className="text-3xl font-bold">{data?.emitidos ?? '…'}</p></div>
       </div>
     </div>
