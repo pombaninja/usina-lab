@@ -10,6 +10,8 @@ import MateriaisPage from './pages/cadastros/MateriaisPage'
 import EquipamentosPage from './pages/cadastros/EquipamentosPage'
 import EspecificacoesPage from './pages/cadastros/EspecificacoesPage'
 import DosagensPage from './pages/DosagensPage'
+import EnsaiosListaPage from './pages/EnsaiosListaPage'
+import EnsaioCauqPage from './pages/EnsaioCauqPage'
 
 const qc = new QueryClient()
 
@@ -29,6 +31,8 @@ export default function App() {
               <Route path="/cadastros/equipamentos" element={<EquipamentosPage />} />
               <Route path="/cadastros/especificacoes" element={<EspecificacoesPage />} />
               <Route path="/dosagens" element={<DosagensPage />} />
+              <Route path="/ensaios" element={<EnsaiosListaPage />} />
+              <Route path="/ensaios/novo" element={<EnsaioCauqPage />} />
             </Route>
           </Routes>
         </BrowserRouter>
