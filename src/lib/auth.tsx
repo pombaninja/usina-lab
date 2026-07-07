@@ -23,10 +23,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!user) { setPerfis({}); setCarregando(false); return }
-    supabase.from('perfis_acesso').select('modulo, papel').then(({ data }) => {
-      setPerfis(Object.fromEntries((data ?? []).map(p => [p.modulo, p.papel])))
+    let atual = true
+    supabase.from('perfis_acesso').select('modulo, papel').then(({ data, error }) => {
+      if (!atual) return
+      if (error) {
+        console.error('Falha ao carregar perfis de acesso:', error.message)
+        setPerfis({})
+      } else {
+        setPerfis(Object.fromEntries((data ?? []).map(p => [p.modulo, p.papel])))
+      }
       setCarregando(false)
     })
+    return () => { atual = false }
   }, [user])
 
   return <Ctx.Provider value={{ user, carregando, perfis, sair: () => supabase.auth.signOut().then(() => {}) }}>{children}</Ctx.Provider>
