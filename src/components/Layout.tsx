@@ -14,6 +14,10 @@ export default function Layout() {
           <Link to="/laudos">Laudos</Link>
           <Link to="/dosagens">Dosagens</Link>
         </>}
+        {perfis['insumos'] && <>
+          <Link to="/insumos">Insumos</Link>
+          <Link to="/insumos/entradas">Entradas</Link>
+        </>}
         {perfis['cadastros'] === 'admin' && <Link to="/cadastros">Cadastros</Link>}
         <button onClick={sair} className="ml-auto text-slate-300">Sair</button>
       </nav>

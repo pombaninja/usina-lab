@@ -10,6 +10,7 @@ import ObrasPage from './pages/cadastros/ObrasPage'
 import MateriaisPage from './pages/cadastros/MateriaisPage'
 import EquipamentosPage from './pages/cadastros/EquipamentosPage'
 import EspecificacoesPage from './pages/cadastros/EspecificacoesPage'
+import TanquesPage from './pages/insumos/TanquesPage'
 import DosagensPage from './pages/DosagensPage'
 import EnsaiosListaPage from './pages/EnsaiosListaPage'
 import EnsaioCauqPage from './pages/EnsaioCauqPage'
@@ -34,6 +35,7 @@ export default function App() {
               <Route path="/cadastros/materiais" element={<MateriaisPage />} />
               <Route path="/cadastros/equipamentos" element={<EquipamentosPage />} />
               <Route path="/cadastros/especificacoes" element={<EspecificacoesPage />} />
+              <Route path="/insumos/tanques" element={<TanquesPage />} />
               <Route path="/dosagens" element={<DosagensPage />} />
               <Route path="/ensaios" element={<EnsaiosListaPage />} />
               <Route path="/ensaios/novo" element={<EnsaioCauqPage />} />
