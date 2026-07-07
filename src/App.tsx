@@ -9,6 +9,7 @@ import ObrasPage from './pages/cadastros/ObrasPage'
 import MateriaisPage from './pages/cadastros/MateriaisPage'
 import EquipamentosPage from './pages/cadastros/EquipamentosPage'
 import EspecificacoesPage from './pages/cadastros/EspecificacoesPage'
+import DosagensPage from './pages/DosagensPage'
 
 const qc = new QueryClient()
 
@@ -27,6 +28,7 @@ export default function App() {
               <Route path="/cadastros/materiais" element={<MateriaisPage />} />
               <Route path="/cadastros/equipamentos" element={<EquipamentosPage />} />
               <Route path="/cadastros/especificacoes" element={<EspecificacoesPage />} />
+              <Route path="/dosagens" element={<DosagensPage />} />
             </Route>
           </Routes>
         </BrowserRouter>
