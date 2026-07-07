@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { calcularIndicadoresDia, saldoTanque, divergenciaContinuidade } from './insumos'
+import { calcularIndicadoresDia, saldoTanque, divergenciaContinuidade, calcularAgregadoMes, type TanqueMin, type LancamentoMes } from './insumos'
 
 describe('indicadores de insumos — 13/11/2025 (golden da planilha)', () => {
   const leituras = [
@@ -41,5 +41,51 @@ describe('divergenciaContinuidade', () => {
   })
   it('sem leitura de ontem → null', () => {
     expect(divergenciaContinuidade(12, null, 5)).toBeNull()
+  })
+})
+
+describe('calcularAgregadoMes', () => {
+  const tanques: TanqueMin[] = [{ id: 't1', produto: 'cap' }]
+
+  function lancamento(data: string, producaoTon: number | null, volumeInicial: number, volumeFinal: number): LancamentoMes {
+    return {
+      data,
+      producao_ton: producaoTon,
+      insumos_leituras: [{
+        tanque_id: 't1', volume_inicial: volumeInicial, volume_final: volumeFinal,
+        horimetro_ligou: null, horimetro_desligou: null,
+      }],
+    }
+  }
+
+  it('média ponderada (não a média simples dos dias)', () => {
+    // dia1: produção 100, CAP deslocado 5 → 0,05/ton; dia2: produção 10, CAP deslocado 1 → 0,1/ton
+    const lancamentos = [lancamento('2026-01-01', 100, 5, 0), lancamento('2026-01-02', 10, 1, 0)]
+    const agregado = calcularAgregadoMes(lancamentos, tanques)
+    expect(agregado.totalProducaoTon).toBeCloseTo(110)
+    expect(agregado.totalCapTon).toBeCloseTo(6)
+    expect(agregado.capPorTonMedio).toBeCloseTo(6 / 110, 4) // ≈ 0,05455
+    expect(agregado.capPorTonMedio).not.toBeCloseTo(0.075, 2) // média simples de 0,05 e 0,1 seria errada
+  })
+
+  it('dia com erro de leitura é excluído atomicamente dos totais do mês', () => {
+    const diaOk = lancamento('2026-01-01', 100, 5, 0)
+    const diaErro = lancamento('2026-01-02', 50, 1, 2) // volume final > inicial → lança erro
+    const agregado = calcularAgregadoMes([diaOk, diaErro], tanques)
+    expect(agregado.dias[1].resultado.ok).toBe(false)
+    if (!agregado.dias[1].resultado.ok) {
+      expect(agregado.dias[1].resultado.erro).toMatch(/final maior/i)
+    }
+    // nada do dia com erro deve contaminar os totais: produção, CAP e óleo
+    expect(agregado.totalProducaoTon).toBeCloseTo(100)
+    expect(agregado.totalCapTon).toBeCloseTo(5)
+    expect(agregado.totalOleoL).toBeCloseTo(0)
+  })
+
+  it('produção total zero → médias ponderadas null (não NaN/Infinity)', () => {
+    const agregado = calcularAgregadoMes([lancamento('2026-01-01', 0, 5, 0)], tanques)
+    expect(agregado.totalProducaoTon).toBe(0)
+    expect(agregado.capPorTonMedio).toBeNull()
+    expect(agregado.oleoPorTonMedio).toBeNull()
   })
 })

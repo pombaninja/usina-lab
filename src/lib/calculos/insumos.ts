@@ -38,6 +38,77 @@ export function saldoTanque(saldoAnterior: number, entradas: number, deslocadoDi
   return saldoAnterior + entradas - deslocadoDia
 }
 
+// ===== agregação mensal (tipos de entrada neutros — arrays de objetos simples) =====
+export interface TanqueMin {
+  id: string
+  produto: 'cap' | 'oleo_queima' | 'oleo_termico'
+}
+export interface LeituraRow {
+  tanque_id: string
+  volume_inicial: number | null
+  volume_final: number | null
+  horimetro_ligou: number | null
+  horimetro_desligou: number | null
+}
+export interface LancamentoMes {
+  data: string
+  producao_ton: number | null
+  insumos_leituras: LeituraRow[]
+}
+export interface DiaAgregado {
+  data: string
+  producaoTon: number | null
+  resultado: { ok: true; ind: IndicadoresDia } | { ok: false; erro: string }
+}
+export interface AgregadoMes {
+  dias: DiaAgregado[]
+  totalProducaoTon: number
+  totalCapTon: number
+  totalOleoL: number
+  capPorTonMedio: number | null
+  oleoPorTonMedio: number | null
+}
+
+/**
+ * Agrega os lançamentos de um mês em indicadores diários e totais/médias
+ * ponderadas do mês. Um dia com erro de leitura (ex.: volume final maior
+ * que o inicial) não contamina o mês inteiro: ele é reportado com o erro
+ * e excluído dos totais/médias, mas os demais dias seguem calculados.
+ */
+export function calcularAgregadoMes(lancamentos: LancamentoMes[], tanques: TanqueMin[]): AgregadoMes {
+  const tanquePorId = new Map(tanques.map(t => [t.id, t]))
+  let totalProducaoTon = 0
+  let totalCapTon = 0
+  let totalOleoL = 0
+  const dias: DiaAgregado[] = lancamentos.map(l => {
+    try {
+      const leituras: LeituraTanque[] = l.insumos_leituras
+        .map((r): LeituraTanque | null => {
+          const t = tanquePorId.get(r.tanque_id)
+          if (!t) return null
+          return {
+            tanqueId: r.tanque_id, produto: t.produto,
+            volumeInicial: r.volume_inicial, volumeFinal: r.volume_final,
+            horimetroLigou: r.horimetro_ligou, horimetroDesligou: r.horimetro_desligou,
+          }
+        })
+        .filter((x): x is LeituraTanque => x !== null)
+      const ind = calcularIndicadoresDia(leituras, l.producao_ton)
+      totalProducaoTon += l.producao_ton ?? 0
+      totalCapTon += ind.capDeslocadoTon
+      totalOleoL += ind.oleoQueimaDeslocado
+      return { data: l.data, producaoTon: l.producao_ton, resultado: { ok: true, ind } }
+    } catch (e) {
+      return { data: l.data, producaoTon: l.producao_ton, resultado: { ok: false, erro: (e as Error).message } }
+    }
+  })
+  return {
+    dias, totalProducaoTon, totalCapTon, totalOleoL,
+    capPorTonMedio: totalProducaoTon > 0 ? totalCapTon / totalProducaoTon : null,
+    oleoPorTonMedio: totalProducaoTon > 0 ? totalOleoL / totalProducaoTon : null,
+  }
+}
+
 /**
  * Divergência de continuidade: o volume inicial de hoje deveria ser
  * o fechamento de ontem mais as entradas do dia. Retorna a diferença
