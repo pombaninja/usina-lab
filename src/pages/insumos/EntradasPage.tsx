@@ -70,7 +70,8 @@ export default function EntradasPage() {
         const agora = new Date()
         const ano = agora.getFullYear()
         const mesUpload = String(agora.getMonth() + 1).padStart(2, '0')
-        const caminho = `${ano}/${mesUpload}/${crypto.randomUUID()}-${arquivo.name}`
+        const nomeLimpo = arquivo.name.replace(/[^\w.\-]+/g, '_')
+        const caminho = `${ano}/${mesUpload}/${crypto.randomUUID()}-${nomeLimpo}`
         const { error: errUpload } = await supabase.storage.from('notas-fiscais').upload(caminho, arquivo)
         if (errUpload) throw new Error('Falha ao enviar o anexo da NF: ' + errUpload.message)
         nfAnexoPath = caminho
@@ -101,12 +102,15 @@ export default function EntradasPage() {
 
   const baixarNf = async (path: string) => {
     setErroDownload('')
+    const aba = window.open('', '_blank')
     const { data: assinada, error } = await supabase.storage.from('notas-fiscais').createSignedUrl(path, 3600)
     if (error || !assinada) {
-      setErroDownload('Falha ao gerar o link de download da NF: ' + (error?.message ?? ''))
+      aba?.close()
+      setErroDownload('Não foi possível gerar o link da NF — tente novamente')
       return
     }
-    window.open(assinada.signedUrl, '_blank')
+    if (aba) aba.location.href = assinada.signedUrl
+    else window.location.href = assinada.signedUrl
   }
 
   const inp = 'border rounded p-2 w-full'

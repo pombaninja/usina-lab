@@ -240,7 +240,7 @@ export default function InsumosDiaPage() {
                 </tr>
                 {temDivergenciaContinuidade && (
                   <tr className="border-b">
-                    <td colSpan={9} className="px-2 pb-2 text-amber-700 text-xs">
+                    <td colSpan={10} className="px-2 pb-2 text-amber-700 text-xs">
                       Difere do fechamento de ontem em {fmt(div, 2)} — confira leitura ou registre a entrada
                     </td>
                   </tr>
