@@ -104,6 +104,11 @@ function SecaoInsumos() {
               <p className={`text-3xl font-bold ${abaixoMinimo ? 'text-red-600' : ''}`}>
                 {saldo != null ? `${fmt(saldo, 3)} ${t.unidade}` : '—'}
               </p>
+              {info && ultimoLancamento && (
+                <p className="text-xs text-slate-500">
+                  (leitura de {(() => { const [, mm, dd] = ultimoLancamento.data.split('-'); return `${dd}/${mm}` })()})
+                </p>
+              )}
               {info && info.entradasPosteriores > 0 && (
                 <p className="text-xs text-slate-500">(inclui {fmt(info.entradasPosteriores, 3)} recebidos)</p>
               )}
