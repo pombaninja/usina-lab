@@ -16,3 +16,14 @@ describe('densidade máxima teórica Rice (golden)', () => {
     expect(gmmRice(2450.25, 7652.31, 9188.39, 0.9971)).toBeCloseTo(2.6725, 3)
   })
 })
+
+describe('validação de entradas', () => {
+  it('teorRotarex rejeita pesos inválidos', () => {
+    expect(() => teorRotarex(0, 10)).toThrow(/inválidos/)
+    expect(() => teorRotarex(100, 0)).toThrow(/inválidos/)
+    expect(() => teorRotarex(100, 150)).toThrow(/inválidos/)
+  })
+  it('gmmRice rejeita leituras inconsistentes (denominador ≤ 0)', () => {
+    expect(() => gmmRice(100, 200, 400)).toThrow(/inconsistentes/)
+  })
+})

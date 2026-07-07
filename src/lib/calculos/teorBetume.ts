@@ -6,7 +6,7 @@ export function teorRotarex(comBetume: number, semBetume: number, umidadePct = 0
   return ((comBetume - semBetume) / comBetume) * 100 - umidadePct
 }
 
-// Fórmula Rice AASHTO T-209: gmm = pesoAmostra / (pesoAmostra + frascoAgua − frascoAmostraAgua) × fatorTemp
+// Fórmula da planilha (célula L29): =(L25*1)/((L25+L24)-L27)*L28 — AASHTO T-209
 export function gmmRice(pesoAmostra: number, frascoAgua: number, frascoAmostraAgua: number, fatorTemp = 1): number {
   const denominador = pesoAmostra + frascoAgua - frascoAmostraAgua
   if (denominador <= 0) throw new Error('Leituras Rice inconsistentes')
