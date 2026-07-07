@@ -71,7 +71,7 @@ export default function Crud({ tabela, titulo, colunas, campos, ordem = 'criado_
             ) : (
               <input className="w-full border rounded p-2" type={c.tipo === 'numero' ? 'number' : 'text'}
                      step="any" value={String(form[c.nome] ?? '')}
-                     onChange={e => setForm({ ...form, [c.nome]: c.tipo === 'numero' ? Number(e.target.value) : e.target.value })} />
+                     onChange={e => setForm({ ...form, [c.nome]: c.tipo === 'numero' ? (e.target.value === '' ? null : Number(e.target.value)) : e.target.value })} />
             )}
           </label>
         ))}
