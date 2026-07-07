@@ -29,11 +29,11 @@ jobs:
       - name: Backup completo (pg_dump)
         run: |
           DATA=$(date -u +%Y-%m-%d)
-          pg_dump "${{ secrets.SUPABASE_DB_URL }}" \
+          /usr/lib/postgresql/17/bin/pg_dump "${{ secrets.SUPABASE_DB_URL }}" \
             --format=custom --no-owner --no-privileges \
             --file="usina-lab-$DATA.dump"
           # Dump legivel (SQL) apenas do schema public para conferencia rapida
-          pg_dump "${{ secrets.SUPABASE_DB_URL }}" \
+          /usr/lib/postgresql/17/bin/pg_dump "${{ secrets.SUPABASE_DB_URL }}" \
             --schema=public --format=plain --no-owner --no-privileges \
             --file="usina-lab-$DATA-public.sql"
           ls -lh usina-lab-$DATA*
