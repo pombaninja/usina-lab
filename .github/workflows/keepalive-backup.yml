@@ -1,0 +1,53 @@
+name: Keep-alive e backup diario do Supabase
+
+on:
+  schedule:
+    # 06:15 UTC = 03:15 em Brasilia, todo dia
+    - cron: '15 6 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  keepalive-backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Keep-alive (ping na API REST)
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" \
+            "${{ secrets.SUPABASE_URL }}/rest/v1/especificacoes?select=id&limit=1" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}")
+          echo "REST respondeu HTTP $code"
+          test "$code" = "200"
+
+      - name: Instalar cliente Postgres 17
+        run: |
+          sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+
+      - name: Backup completo (pg_dump)
+        run: |
+          DATA=$(date -u +%Y-%m-%d)
+          pg_dump "${{ secrets.SUPABASE_DB_URL }}" \
+            --format=custom --no-owner --no-privileges \
+            --file="usina-lab-$DATA.dump"
+          # Dump legivel (SQL) apenas do schema public para conferencia rapida
+          pg_dump "${{ secrets.SUPABASE_DB_URL }}" \
+            --schema=public --format=plain --no-owner --no-privileges \
+            --file="usina-lab-$DATA-public.sql"
+          ls -lh usina-lab-$DATA*
+
+      - name: Guardar backup (90 dias de retencao)
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-${{ github.run_id }}
+          path: usina-lab-*.dump
+          retention-days: 90
+
+      - name: Guardar SQL legivel (30 dias)
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-sql-${{ github.run_id }}
+          path: usina-lab-*-public.sql
+          retention-days: 30
