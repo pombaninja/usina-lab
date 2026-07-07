@@ -12,6 +12,8 @@ import EspecificacoesPage from './pages/cadastros/EspecificacoesPage'
 import DosagensPage from './pages/DosagensPage'
 import EnsaiosListaPage from './pages/EnsaiosListaPage'
 import EnsaioCauqPage from './pages/EnsaioCauqPage'
+import EnsaioDetalhePage from './pages/EnsaioDetalhePage'
+import LaudosListaPage from './pages/LaudosListaPage'
 
 const qc = new QueryClient()
 
@@ -33,6 +35,8 @@ export default function App() {
               <Route path="/dosagens" element={<DosagensPage />} />
               <Route path="/ensaios" element={<EnsaiosListaPage />} />
               <Route path="/ensaios/novo" element={<EnsaioCauqPage />} />
+              <Route path="/ensaios/:id" element={<EnsaioDetalhePage />} />
+              <Route path="/laudos" element={<LaudosListaPage />} />
             </Route>
           </Routes>
         </BrowserRouter>

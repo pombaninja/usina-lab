@@ -1,0 +1,45 @@
+import { Link } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
+import { supabase } from '../lib/supabase'
+
+interface LaudoLinha {
+  id: string
+  numero: string
+  revisao: number
+  status: string
+  emitido_em: string | null
+  ensaio_id: string
+  empresas: { nome_exibicao: string }
+}
+
+export default function LaudosListaPage() {
+  const { data: laudos } = useQuery({
+    queryKey: ['laudos'],
+    queryFn: async () => {
+      const result = await supabase.from('laudos')
+        .select('id, numero, revisao, status, emitido_em, ensaio_id, empresas(nome_exibicao)')
+        .order('criado_em', { ascending: false }).limit(200)
+      return (result.data ?? []) as unknown as LaudoLinha[]
+    },
+  })
+
+  return (
+    <div className="space-y-4">
+      <h1 className="text-2xl font-bold">Laudos</h1>
+      <table className="w-full bg-white rounded-xl shadow text-sm">
+        <thead><tr className="text-left border-b"><th className="p-3">Número</th><th>Empresa</th><th>Rev.</th><th>Status</th><th>Emitido em</th><th /></tr></thead>
+        <tbody>{(laudos ?? []).map((l: LaudoLinha) => (
+          <tr key={l.id} className="border-b hover:bg-slate-50">
+            <td className="p-3 font-mono">{l.numero}</td><td>{l.empresas?.nome_exibicao}</td>
+            <td>{l.revisao}</td><td className="uppercase">{l.status}</td>
+            <td>{l.emitido_em ? new Date(l.emitido_em).toLocaleString('pt-BR') : '—'}</td>
+            <td className="p-3 flex gap-3">
+              <Link className="text-blue-700" to={`/ensaios/${l.ensaio_id}`}>Ensaio</Link>
+              {l.status === 'emitido' && <Link className="text-blue-700" to={`/laudos/${l.id}/imprimir`}>PDF</Link>}
+            </td>
+          </tr>
+        ))}</tbody>
+      </table>
+    </div>
+  )
+}
