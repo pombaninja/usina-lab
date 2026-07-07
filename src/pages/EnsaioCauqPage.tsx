@@ -64,6 +64,13 @@ export default function EnsaioCauqPage() {
         return { ok: false, problema: 'Dosagem sem Gmm de projeto — informe o Rice ou complete a dosagem.' }
       }
 
+      const temMarshall = cps.some(c => c.pesoAr && c.pesoImerso)
+      const temGran = !!gran.pesoTotal && gran.leituras.some(l => l.retido !== '')
+      const temRotarex = !!teor.comBetume
+      if (!temMarshall && !temGran && !temRotarex) {
+        return { ok: false, problema: 'Informe as leituras de ao menos um ensaio (Marshall, granulometria ou teor de betume).' }
+      }
+
       const leituras: PeneiraLeitura[] = gran.leituras
         .filter(l => l.retido !== '')
         .map(l => ({ peneira: l.peneira, aberturaMm: n(l.abertura), retidoAcum: n(l.retido) }))
@@ -127,20 +134,20 @@ export default function EnsaioCauqPage() {
       }).select('id').single()
       if (error) throw error
       const id = ensaio.id
-      const inserts: PromiseLike<unknown>[] = []
+      const inserts: PromiseLike<{ error: { message: string } | null }>[] = []
       const cpsPreenchidos = cps.map((c, i) => ({ ...c, cp: i + 1 })).filter(c => c.pesoAr)
       if (cpsPreenchidos.length) {
-        inserts.push(supabase.from('cauq_marshall').insert({ ensaio_id: id, constante_prensa: n(constantePrensa), gmm_ensaio: rice.pesoAmostra ? calc.gmm : null }).then())
+        inserts.push(supabase.from('cauq_marshall').insert({ ensaio_id: id, constante_prensa: n(constantePrensa), gmm_ensaio: rice.pesoAmostra ? calc.gmm : null }))
         inserts.push(supabase.from('cauq_marshall_cp').insert(cpsPreenchidos.map(c => ({
           ensaio_id: id, cp: c.cp, peso_ar: n(c.pesoAr), peso_imerso: n(c.pesoImerso),
           leitura_estabilidade: n(c.leituraEstab) || 0, fator_correcao: c.fator ? n(c.fator) : null,
           leitura_fluencia_mm: n(c.fluencia) || 0,
-        }))).then())
+        }))))
       }
       if (gran.pesoTotal) inserts.push(supabase.from('cauq_granulometria').insert({
         ensaio_id: id, peso_total: n(gran.pesoTotal),
         leituras: gran.leituras.filter(l => l.retido !== '').map(l => ({ peneira: l.peneira, abertura_mm: n(l.abertura), retido_acum: n(l.retido) })),
-      }).then())
+      }))
       if (teor.comBetume || rice.pesoAmostra) inserts.push(supabase.from('cauq_teor_betume').insert({
         ensaio_id: id, metodo: 'rotarex',
         amostra_com_betume: teor.comBetume ? n(teor.comBetume) : null,
@@ -150,12 +157,15 @@ export default function EnsaioCauqPage() {
         rice_frasco_agua: rice.frascoAgua ? n(rice.frascoAgua) : null,
         rice_frasco_amostra_agua: rice.frascoAmostraAgua ? n(rice.frascoAmostraAgua) : null,
         rice_fator_temp: n(rice.fator) || 1,
-      }).then())
+      }))
       const rtdPreench = rtdCps.map((c, i) => ({ ...c, cp: i + 1 })).filter(c => c.leitura)
       if (rtdPreench.length) inserts.push(supabase.from('cauq_rtd_cp').insert(rtdPreench.map(c => ({
         ensaio_id: id, cp: c.cp, leitura: n(c.leitura), constante_prensa: n(constantePrensa), diametro_cm: n(c.d), altura_cm: n(c.h),
-      }))).then())
-      await Promise.all(inserts)
+      }))))
+      const resultados = await Promise.all(inserts)
+      for (const r of resultados) {
+        if (r.error) throw new Error('Falha ao salvar leituras do ensaio: ' + r.error.message)
+      }
       return id
     },
     onSuccess: (id) => nav(`/ensaios/${id}`),
