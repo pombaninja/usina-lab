@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from './lib/auth'
 import Layout from './components/Layout'
 import Login from './pages/Login'
+import DashboardPage from './pages/DashboardPage'
 import CadastrosIndex from './pages/cadastros/CadastrosIndex'
 import EmpresasPage from './pages/cadastros/EmpresasPage'
 import ObrasPage from './pages/cadastros/ObrasPage'
@@ -26,7 +27,7 @@ export default function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route element={<Layout />}>
-              <Route path="/" element={<p>Bem-vindo. Use o menu acima.</p>} />
+              <Route path="/" element={<DashboardPage />} />
               <Route path="/cadastros" element={<CadastrosIndex />} />
               <Route path="/cadastros/empresas" element={<EmpresasPage />} />
               <Route path="/cadastros/obras" element={<ObrasPage />} />
