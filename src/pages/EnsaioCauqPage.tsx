@@ -47,7 +47,7 @@ export default function EnsaioCauqPage() {
   })
 
   // ===== cálculo ao vivo =====
-  const calc = useMemo(() => {
+  const calc = useMemo((): { ok: true; teorPct: number; gmm: number; granRes: ReturnType<typeof calcularGranulometria> | null; marshallRes: ReturnType<typeof calcularMarshall> | null; rtdRes: ReturnType<typeof calcularRtd> | null; aval: ReturnType<typeof avaliarParametros>; conformeGeral: boolean } | { ok: false; problema: string } | null => {
     if (!dosagem) return null
     try {
       const teorPct = teor.comBetume && teor.semBetume
@@ -56,6 +56,13 @@ export default function EnsaioCauqPage() {
       const gmm = rice.pesoAmostra
         ? gmmRice(n(rice.pesoAmostra), n(rice.frascoAgua), n(rice.frascoAmostraAgua), n(rice.fator) || 1)
         : Number(dosagem.dens_max_teorica_projeto)
+
+      if (!Number.isFinite(teorPct) || teorPct <= 0) {
+        return { ok: false, problema: 'Dosagem sem teor ótimo cadastrado — informe o Rotarex ou complete a dosagem.' }
+      }
+      if (!Number.isFinite(gmm) || gmm <= 0) {
+        return { ok: false, problema: 'Dosagem sem Gmm de projeto — informe o Rice ou complete a dosagem.' }
+      }
 
       const leituras: PeneiraLeitura[] = gran.leituras
         .filter(l => l.retido !== '')
@@ -95,32 +102,35 @@ export default function EnsaioCauqPage() {
       if (rtdRes) valores.rtd = rtdRes.media
       const aval = avaliarParametros(valores, faixas?.parametros ?? [])
       const conformeGeral = aval.conformeGeral && (granRes ? granRes.conforme : true)
-      return { teorPct, gmm, granRes, marshallRes, rtdRes, aval, conformeGeral }
-    } catch { return null }
+      return { ok: true, teorPct, gmm, granRes, marshallRes, rtdRes, aval, conformeGeral }
+    } catch (e) {
+      return { ok: false, problema: (e as Error).message }
+    }
   }, [dosagem, faixas, cps, gran, teor, rice, rtdCps, constantePrensa])
 
   // ===== salvar =====
   const salvar = useMutation({
     mutationFn: async () => {
       if (!dosagem) throw new Error('Selecione a dosagem')
+      if (!calc?.ok) throw new Error('Preencha os dados do ensaio antes de salvar')
       const { data: ensaio, error } = await supabase.from('ensaios_cauq').insert({
         empresa_id: dosagem.empresa_id, dosagem_id: dosagem.id,
         cliente_obra_id: cab.cliente_obra_id || null, periodo: cab.periodo,
         placa_caminhao: cab.placa_caminhao || null, operador: cab.operador || null,
         temperatura_cap: cab.temperatura_cap ? n(cab.temperatura_cap) : null,
         observacoes: cab.observacoes || null,
-        resultados: calc ? {
+        resultados: {
           teor: calc.teorPct, gmm: calc.gmm,
           marshall: calc.marshallRes, granulometria: calc.granRes, rtd: calc.rtdRes,
           avaliacoes: calc.aval.avaliacoes, conforme: calc.conformeGeral,
-        } : null,
+        },
       }).select('id').single()
       if (error) throw error
       const id = ensaio.id
       const inserts: PromiseLike<unknown>[] = []
       const cpsPreenchidos = cps.map((c, i) => ({ ...c, cp: i + 1 })).filter(c => c.pesoAr)
       if (cpsPreenchidos.length) {
-        inserts.push(supabase.from('cauq_marshall').insert({ ensaio_id: id, constante_prensa: n(constantePrensa), gmm_ensaio: rice.pesoAmostra ? calc?.gmm : null }).then())
+        inserts.push(supabase.from('cauq_marshall').insert({ ensaio_id: id, constante_prensa: n(constantePrensa), gmm_ensaio: rice.pesoAmostra ? calc.gmm : null }).then())
         inserts.push(supabase.from('cauq_marshall_cp').insert(cpsPreenchidos.map(c => ({
           ensaio_id: id, cp: c.cp, peso_ar: n(c.pesoAr), peso_imerso: n(c.pesoImerso),
           leitura_estabilidade: n(c.leituraEstab) || 0, fator_correcao: c.fator ? n(c.fator) : null,
@@ -157,9 +167,14 @@ export default function EnsaioCauqPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Novo Ensaio CAUQ</h1>
-        {calc && (
+        {calc?.ok && (
           <span className={`px-4 py-2 rounded-full font-bold text-white ${calc.conformeGeral ? 'bg-green-600' : 'bg-red-600'}`}>
             {calc.conformeGeral ? 'DENTRO DA ESPECIFICAÇÃO' : 'FORA DA ESPECIFICAÇÃO'}
+          </span>
+        )}
+        {calc && !calc.ok && (
+          <span className="px-4 py-2 rounded-full font-bold text-white bg-amber-600">
+            {calc.problema}
           </span>
         )}
       </div>
@@ -193,7 +208,7 @@ export default function EnsaioCauqPage() {
             <th>Dens. ap.</th><th>Vazios %</th><th>Estab. corrig.</th>
           </tr></thead>
           <tbody>{cps.map((c, i) => {
-            const r = calc?.marshallRes?.cps[cps.filter((x, j) => j < i && x.pesoAr && x.pesoImerso).length]
+            const r = calc?.ok ? calc.marshallRes?.cps[cps.filter((x, j) => j < i && x.pesoAr && x.pesoImerso).length] : undefined
             const preenchido = c.pesoAr && c.pesoImerso
             return (
               <tr key={i} className="border-b">
@@ -209,7 +224,7 @@ export default function EnsaioCauqPage() {
             )
           })}</tbody>
         </table>
-        {calc?.marshallRes && (
+        {calc?.ok && calc.marshallRes && (
           <p className="mt-2 text-sm text-slate-700">
             Médias — Vazios: <b>{calc.marshallRes.medias.vazios.toFixed(2)}%</b> · VAM: <b>{calc.marshallRes.medias.vam.toFixed(1)}</b> ·
             RBV: <b>{calc.marshallRes.medias.rbv.toFixed(1)}%</b> · Estabilidade: <b>{calc.marshallRes.medias.estabilidadeCorrigida.toFixed(0)} kgf</b> ·
@@ -227,7 +242,7 @@ export default function EnsaioCauqPage() {
         <table className="w-full text-sm mt-3">
           <thead><tr className="text-left border-b"><th className="p-2">Peneira</th><th>Abertura</th><th>Retido acum. (g)</th><th>% Passando</th><th>Faixa trabalho</th><th /></tr></thead>
           <tbody>{gran.leituras.map((l, i) => {
-            const linha = calc?.granRes?.linhas.find(x => x.peneira === l.peneira)
+            const linha = calc?.ok ? calc.granRes?.linhas.find(x => x.peneira === l.peneira) : undefined
             return (
               <tr key={l.peneira} className="border-b">
                 <td className="p-2">{l.peneira}</td><td>{l.abertura}</td>
@@ -250,7 +265,7 @@ export default function EnsaioCauqPage() {
             <label className="block">Amostra com betume (g)<input className={inp} type="number" step="any" value={teor.comBetume} onChange={e => setTeor({ ...teor, comBetume: e.target.value })} /></label>
             <label className="block">Amostra sem betume (g)<input className={inp} type="number" step="any" value={teor.semBetume} onChange={e => setTeor({ ...teor, semBetume: e.target.value })} /></label>
             <label className="block">Umidade (%)<input className={inp} type="number" step="any" value={teor.umidade} onChange={e => setTeor({ ...teor, umidade: e.target.value })} /></label>
-            {calc && <p>Teor de betume: <b>{calc.teorPct.toFixed(2)}%</b></p>}
+            {calc?.ok && <p>Teor de betume: <b>{calc.teorPct.toFixed(2)}%</b></p>}
           </div>
         </div>
         <div>
@@ -260,7 +275,7 @@ export default function EnsaioCauqPage() {
             <label className="block">Frasco + água (g)<input className={inp} type="number" step="any" value={rice.frascoAgua} onChange={e => setRice({ ...rice, frascoAgua: e.target.value })} /></label>
             <label className="block">Frasco + amostra + água (g)<input className={inp} type="number" step="any" value={rice.frascoAmostraAgua} onChange={e => setRice({ ...rice, frascoAmostraAgua: e.target.value })} /></label>
             <label className="block">Fator de temperatura<input className={inp} type="number" step="any" value={rice.fator} onChange={e => setRice({ ...rice, fator: e.target.value })} /></label>
-            {calc && <p>Gmm em uso: <b>{calc.gmm.toFixed(4)}</b> {rice.pesoAmostra ? '(Rice do dia)' : '(de projeto)'}</p>}
+            {calc?.ok && <p>Gmm em uso: <b>{calc.gmm.toFixed(4)}</b> {rice.pesoAmostra ? '(Rice do dia)' : '(de projeto)'}</p>}
           </div>
         </div>
       </section>
@@ -276,14 +291,14 @@ export default function EnsaioCauqPage() {
                 <td key={k}><input className="border rounded p-1 w-24" type="number" step="any" value={c[k]}
                       onChange={e => setRtdCps(rtdCps.map((x, j) => j === i ? { ...x, [k]: e.target.value } : x))} /></td>
               ))}
-              <td className="p-2">{calc?.rtdRes?.rtdMpa[rtdCps.filter((x, j) => j < i && x.leitura).length]?.toFixed(3) ?? ''}</td>
+              <td className="p-2">{calc?.ok ? (calc.rtdRes?.rtdMpa[rtdCps.filter((x, j) => j < i && x.leitura).length]?.toFixed(3) ?? '') : ''}</td>
             </tr>
           ))}</tbody>
         </table>
-        {calc?.rtdRes && <p className="text-sm mt-2">RTD média: <b>{calc.rtdRes.media.toFixed(3)} MPa</b></p>}
+        {calc?.ok && calc.rtdRes && <p className="text-sm mt-2">RTD média: <b>{calc.rtdRes.media.toFixed(3)} MPa</b></p>}
       </section>
 
-      {calc && calc.aval.avaliacoes.length > 0 && (
+      {calc?.ok && calc.aval.avaliacoes.length > 0 && (
         <section className="bg-white p-4 rounded-xl shadow">
           <h2 className="font-semibold mb-2">Verificação contra a especificação</h2>
           <table className="w-full text-sm">
@@ -302,7 +317,9 @@ export default function EnsaioCauqPage() {
       <label className="block text-sm">Observações
         <textarea className="w-full border rounded p-2" value={cab.observacoes} onChange={e => setCab({ ...cab, observacoes: e.target.value })} /></label>
       {erro && <p className="text-red-600">{erro}</p>}
-      <button className="bg-blue-700 text-white rounded px-6 py-3 font-semibold" onClick={() => salvar.mutate()}>Salvar Ensaio</button>
+      {!calc?.ok && <p className="text-amber-700">Preencha os dados do ensaio antes de salvar</p>}
+      <button className="bg-blue-700 text-white rounded px-6 py-3 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={!calc?.ok} onClick={() => salvar.mutate()}>Salvar Ensaio</button>
     </div>
   )
 }
