@@ -1,8 +1,102 @@
+import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { fmt } from '../lib/formato'
+import { useAuth } from '../lib/auth'
+import { calcularAgregadoMes, type LancamentoMes, type TanqueMin } from './insumos/InsumosHistoricoPage'
+
+interface TanqueAtivo { id: string; codigo: string; nome: string; unidade: string; estoque_minimo: number }
+
+function mesAtualLimites() {
+  const mes = new Date().toISOString().slice(0, 7)
+  const [ano, mesNum] = mes.split('-').map(Number)
+  return { inicio: `${mes}-01`, fim: new Date(ano, mesNum, 1).toISOString().slice(0, 10) }
+}
+
+function SecaoInsumos() {
+  const { inicio, fim } = mesAtualLimites()
+  const card = 'bg-white p-6 rounded-xl shadow'
+
+  const { data: tanquesAtivos } = useQuery({
+    queryKey: ['tanques-ativos-dashboard'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('tanques').select('id, codigo, nome, unidade, estoque_minimo').eq('ativa', true).order('codigo')
+      if (error) throw error
+      return (data ?? []) as TanqueAtivo[]
+    },
+  })
+
+  const { data: tanquesTodos } = useQuery({
+    queryKey: ['tanques-todos-dashboard'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('tanques').select('id, produto')
+      if (error) throw error
+      return (data ?? []) as TanqueMin[]
+    },
+  })
+
+  const { data: ultimoLancamento } = useQuery({
+    queryKey: ['insumos-ultimo-lancamento'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('insumos_lancamentos')
+        .select('data, insumos_leituras(tanque_id, volume_final)')
+        .order('data', { ascending: false })
+        .limit(1)
+      if (error) throw error
+      return (data?.[0] ?? null) as { data: string; insumos_leituras: { tanque_id: string; volume_final: number | null }[] } | null
+    },
+  })
+
+  const { data: lancamentosMes } = useQuery({
+    queryKey: ['insumos-lancamentos-mes-atual'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('insumos_lancamentos')
+        .select('data, producao_ton, insumos_leituras(*)')
+        .gte('data', inicio).lt('data', fim)
+      if (error) throw error
+      return (data ?? []) as LancamentoMes[]
+    },
+  })
+
+  const saldoPorTanque = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const l of ultimoLancamento?.insumos_leituras ?? []) {
+      if (l.volume_final != null) m.set(l.tanque_id, l.volume_final)
+    }
+    return m
+  }, [ultimoLancamento])
+
+  const agregado = useMemo(
+    () => calcularAgregadoMes(lancamentosMes ?? [], tanquesTodos ?? []),
+    [lancamentosMes, tanquesTodos],
+  )
+
+  return (
+    <section className="space-y-4">
+      <h2 className="text-xl font-bold">Insumos</h2>
+      <div className="grid grid-cols-4 gap-4">
+        {(tanquesAtivos ?? []).map(t => {
+          const saldo = saldoPorTanque.get(t.id)
+          const abaixoMinimo = saldo != null && saldo < t.estoque_minimo
+          return (
+            <div key={t.id} className={card}>
+              <p className="text-slate-500 text-sm">{t.codigo} — {t.nome}</p>
+              <p className={`text-3xl font-bold ${abaixoMinimo ? 'text-red-600' : ''}`}>
+                {saldo != null ? `${fmt(saldo, 3)} ${t.unidade}` : '—'}
+              </p>
+              {abaixoMinimo && <span className="bg-red-600 text-white rounded-full px-2 py-0.5 text-xs font-bold">ABAIXO DO MÍNIMO</span>}
+            </div>
+          )
+        })}
+        <div className={card}><p className="text-slate-500 text-sm">CAP/ton (mês)</p><p className="text-3xl font-bold">{fmt(agregado.capPorTonMedio, 4)}</p></div>
+        <div className={card}><p className="text-slate-500 text-sm">Óleo L/ton (mês)</p><p className="text-3xl font-bold">{fmt(agregado.oleoPorTonMedio, 2)}</p></div>
+      </div>
+    </section>
+  )
+}
 
 export default function DashboardPage() {
+  const { perfis } = useAuth()
   const { data } = useQuery({
     queryKey: ['dashboard'],
     queryFn: async () => {
@@ -37,6 +131,7 @@ export default function DashboardPage() {
         <div className={card}><p className="text-slate-500 text-sm">Teor de betume médio</p><p className="text-3xl font-bold">{data?.teorMedio ? `${fmt(data.teorMedio, 2)}%` : '—'}</p></div>
         <div className={card}><p className="text-slate-500 text-sm">Laudos emitidos</p><p className="text-3xl font-bold">{data?.emitidos ?? '…'}</p></div>
       </div>
+      {perfis['insumos'] && <SecaoInsumos />}
     </div>
   )
 }
