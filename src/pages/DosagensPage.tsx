@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { parseCurvaProjeto } from '../lib/parseCurvaProjeto'
 
 export default function DosagensPage() {
   const qc = useQueryClient()
@@ -17,13 +18,7 @@ export default function DosagensPage() {
 
   const salvar = useMutation({
     mutationFn: async () => {
-      // curva de projeto: "PENEIRA=VALOR; PENEIRA=VALOR"
-      const curva: Record<string, number> = {}
-      for (const par of curvaTexto.split(';').map(s => s.trim()).filter(Boolean)) {
-        const [pen, val] = par.split('=').map(s => s.trim())
-        if (!pen || isNaN(Number(val))) throw new Error(`Curva de projeto inválida em: "${par}"`)
-        curva[pen] = Number(val)
-      }
+      const curva = parseCurvaProjeto(curvaTexto)
       const { error } = await supabase.from('dosagens').insert({ ...form, curva_projeto: curva })
       if (error) throw error
     },
