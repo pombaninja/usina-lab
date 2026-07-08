@@ -30,7 +30,7 @@ export default function LaudosListaPage() {
         <thead><tr className="text-left border-b"><th className="p-3">Número</th><th>Empresa</th><th>Rev.</th><th>Status</th><th>Emitido em</th><th /></tr></thead>
         <tbody>{(laudos ?? []).map((l: LaudoLinha) => (
           <tr key={l.id} className="border-b hover:bg-slate-50">
-            <td className="p-3 font-mono">{l.numero}</td><td>{l.empresas?.nome_exibicao}</td>
+            <td className="p-3 font-mono">{l.numero}{l.revisao > 0 ? ` — Rev. ${l.revisao}` : ''}</td><td>{l.empresas?.nome_exibicao}</td>
             <td>{l.revisao}</td><td className="uppercase">{l.status}</td>
             <td>{l.emitido_em ? new Date(l.emitido_em).toLocaleString('pt-BR') : '—'}</td>
             <td className="p-3 flex gap-3">

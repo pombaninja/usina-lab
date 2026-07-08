@@ -45,6 +45,7 @@ export default function App() {
               <Route path="/dosagens" element={<DosagensPage />} />
               <Route path="/ensaios" element={<EnsaiosListaPage />} />
               <Route path="/ensaios/novo" element={<EnsaioCauqPage />} />
+              <Route path="/ensaios/:id/editar" element={<EnsaioCauqPage />} />
               <Route path="/ensaios/:id" element={<EnsaioDetalhePage />} />
               <Route path="/laudos" element={<LaudosListaPage />} />
               <Route path="/laudos/:id/imprimir" element={<LaudoImprimirPage />} />

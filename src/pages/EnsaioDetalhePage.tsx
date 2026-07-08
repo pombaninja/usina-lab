@@ -130,9 +130,13 @@ export default function EnsaioDetalhePage() {
 
   if (!ensaio) return <p>Carregando…</p>
   const r = ensaio.resultados
+  const podeEditarValores = !laudo || laudo.status !== 'emitido'
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Ensaio de {new Date(ensaio.data + 'T12:00').toLocaleDateString('pt-BR')} — {ensaio.dosagens?.nome}</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Ensaio de {new Date(ensaio.data + 'T12:00').toLocaleDateString('pt-BR')} — {ensaio.dosagens?.nome}</h1>
+        {podeEditarValores && <Link to={`/ensaios/${id}/editar`} className="bg-slate-800 text-white rounded px-4 py-2">Editar valores</Link>}
+      </div>
       {r && (
         <div className={`p-4 rounded-xl text-white font-bold ${r.conforme ? 'bg-green-600' : 'bg-red-600'}`}>
           {r.conforme ? 'DENTRO DA ESPECIFICAÇÃO' : 'FORA DA ESPECIFICAÇÃO'}
@@ -151,7 +155,7 @@ export default function EnsaioDetalhePage() {
         {!laudo && <button className="bg-blue-700 text-white rounded px-4 py-2 disabled:opacity-50" disabled={criarLaudo.isPending} onClick={() => criarLaudo.mutate()}>Criar laudo (rascunho)</button>}
         {laudo && (
           <div className="space-y-3 text-sm">
-            <p>Número: <b>{laudo.numero}</b> · Revisão: <b>{laudo.revisao}</b> · Status: <b className="uppercase">{laudo.status}</b></p>
+            <p>Número: <b>{laudo.numero}{laudo.revisao > 0 ? ` — Rev. ${laudo.revisao}` : ''}</b> · Revisão: <b>{laudo.revisao}</b> · Status: <b className="uppercase">{laudo.status}</b></p>
             <div className="flex gap-3">
               {laudo.status === 'rascunho' && podeAprovar &&
                 <button className="bg-amber-600 text-white rounded px-4 py-2 disabled:opacity-50" disabled={aprovar.isPending} onClick={() => aprovar.mutate()}>Aprovar</button>}
@@ -162,6 +166,11 @@ export default function EnsaioDetalhePage() {
                 <button className="border rounded px-4 py-2 disabled:opacity-50" disabled={revisar.isPending} onClick={() => revisar.mutate()}>Criar revisão</button>
               </>}
             </div>
+            {laudo.revisao > 0 && laudo.status === 'rascunho' && (
+              <p className="text-amber-700">
+                Revisão aberta: edite os valores do ensaio, aprove e emita novamente. O número do laudo será mantido (Rev. {laudo.revisao}).
+              </p>
+            )}
             {(criarLaudo.error || aprovar.error || emitir.error || revisar.error) &&
               <p className="text-red-600">{String((criarLaudo.error ?? aprovar.error ?? emitir.error ?? revisar.error as Error).message)}</p>}
           </div>
