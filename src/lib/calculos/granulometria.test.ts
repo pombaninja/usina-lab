@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { calcularGranulometria } from './granulometria'
+import { calcularGranulometria, normalizarPeneira } from './granulometria'
 
 // Golden: Granulometria Pedrisco 3/8 — Pedreira Viradouro, 15/09/2025
 describe('granulometria - pedrisco 3/8 (golden)', () => {
@@ -53,5 +53,25 @@ describe('granulometria - FX III Olimpia (golden)', () => {
     expect(n4.trabMin).toBeCloseTo(49.6, 5)   // valores da planilha (I42/J42)
     expect(n4.trabMax).toBeCloseTo(59.6, 5)
     expect(n4.conforme).toBe(true)            // 57.77 está dentro de [49.6, 59.6]
+  })
+  it('cruza faixa cadastrada como "# 4" com leitura "N. 04"', () => {
+    const r = calcularGranulometria(943.65, [{ peneira: 'N. 04', aberturaMm: 4.76, retidoAcum: 398.5 }],
+      [{ peneira: '# 4', passanteMin: 44, passanteMax: 72, toleranciaTrabalho: 5 }], { '# 4': 54.6 })
+    const l = r.linhas[0]
+    expect(l.espMin).toBe(44); expect(l.trabMin).toBeCloseTo(49.6, 5)
+  })
+})
+
+describe('normalizarPeneira', () => {
+  it('equivale grafias comuns', () => {
+    expect(normalizarPeneira('# 4')).toBe(normalizarPeneira('N. 04'))
+    expect(normalizarPeneira('N. 200')).toBe(normalizarPeneira('#200'))
+    expect(normalizarPeneira('3/8"')).toBe(normalizarPeneira(' 3/8 '))
+    expect(normalizarPeneira('1/2"')).toBe(normalizarPeneira('1/2'))
+  })
+  it('não colide peneiras diferentes', () => {
+    expect(normalizarPeneira('N. 04')).not.toBe(normalizarPeneira('N. 10'))
+    expect(normalizarPeneira('3/4"')).not.toBe(normalizarPeneira('3/8"'))
+    expect(normalizarPeneira('1"')).not.toBe(normalizarPeneira('1/2"'))
   })
 })

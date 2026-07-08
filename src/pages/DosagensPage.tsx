@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth, podeNoModulo } from '../lib/auth'
+import { normalizarPeneira } from '../lib/calculos/granulometria'
 
 interface LinhaCurva { peneira: string; passante: string; tolerancia: string }
 type Dosagem = Record<string, unknown> & {
@@ -79,10 +80,10 @@ export default function DosagensPage() {
     const { data, error } = await supabase.from('especificacao_peneiras').select('*').eq('especificacao_id', especId).order('abertura_mm', { ascending: false })
     if (error) { setErro(error.message); return }
     setCurvaLinhas(prev => {
-      const existentes = new Map(prev.map(l => [l.peneira.trim(), l.passante]))
+      const existentes = new Map(prev.map(l => [normalizarPeneira(l.peneira), l.passante]))
       return (data ?? []).map((p: { peneira: string; tolerancia_trabalho: number | null }) => ({
         peneira: p.peneira,
-        passante: existentes.get(p.peneira.trim()) ?? '',
+        passante: existentes.get(normalizarPeneira(p.peneira)) ?? '',
         tolerancia: p.tolerancia_trabalho != null ? String(p.tolerancia_trabalho) : '',
       }))
     })
