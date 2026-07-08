@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
-import { calcularGranulometria, type PeneiraLeitura } from '../lib/calculos/granulometria'
+import { calcularGranulometria, normalizarPeneira, type PeneiraLeitura } from '../lib/calculos/granulometria'
 import { calcularMarshall } from '../lib/calculos/marshall'
 import { teorRotarex, gmmRice } from '../lib/calculos/teorBetume'
 import { calcularRtd } from '../lib/calculos/rtd'
@@ -13,6 +13,14 @@ interface CpForm { pesoAr: string; pesoImerso: string; leituraEstab: string; fat
 const cpVazio: CpForm = { pesoAr: '', pesoImerso: '', leituraEstab: '', fator: '', fluencia: '' }
 const n = (s: string) => (s === '' ? NaN : Number(s))
 
+// Lista padrão usada apenas como fallback quando a especificação não tem peneiras cadastradas
+const peneirasPadrao: { peneira: string; abertura: string }[] = [
+  { peneira: '3/4"', abertura: '19' }, { peneira: '1/2"', abertura: '12.5' },
+  { peneira: '3/8"', abertura: '9.53' }, { peneira: 'N. 04', abertura: '4.76' },
+  { peneira: 'N. 10', abertura: '2' }, { peneira: 'N. 40', abertura: '0.42' },
+  { peneira: 'N. 80', abertura: '0.18' }, { peneira: 'N. 200', abertura: '0.075' },
+]
+
 export default function EnsaioCauqPage() {
   const nav = useNavigate()
   const [cab, setCab] = useState({ dosagem_id: '', cliente_obra_id: '', periodo: 'manha', placa_caminhao: '', operador: '', temperatura_cap: '', observacoes: '' })
@@ -20,12 +28,7 @@ export default function EnsaioCauqPage() {
   const [cps, setCps] = useState<CpForm[]>([{ ...cpVazio }, { ...cpVazio }, { ...cpVazio }])
   const [gran, setGran] = useState<{ pesoTotal: string; leituras: { peneira: string; abertura: string; retido: string }[] }>({
     pesoTotal: '',
-    leituras: [
-      { peneira: '3/4"', abertura: '19', retido: '' }, { peneira: '1/2"', abertura: '12.5', retido: '' },
-      { peneira: '3/8"', abertura: '9.53', retido: '' }, { peneira: 'N. 04', abertura: '4.76', retido: '' },
-      { peneira: 'N. 10', abertura: '2', retido: '' }, { peneira: 'N. 40', abertura: '0.42', retido: '' },
-      { peneira: 'N. 80', abertura: '0.18', retido: '' }, { peneira: 'N. 200', abertura: '0.075', retido: '' },
-    ],
+    leituras: peneirasPadrao.map(l => ({ ...l, retido: '' })),
   })
   const [teor, setTeor] = useState({ comBetume: '', semBetume: '', umidade: '0' })
   const [rice, setRice] = useState({ pesoAmostra: '', frascoAgua: '', frascoAmostraAgua: '', fator: '1' })
@@ -42,10 +45,31 @@ export default function EnsaioCauqPage() {
     queryKey: ['faixas', dosagem?.especificacao_id],
     enabled: !!dosagem,
     queryFn: async () => ({
-      peneiras: (await supabase.from('especificacao_peneiras').select('*').eq('especificacao_id', dosagem.especificacao_id)).data ?? [],
+      peneiras: (await supabase.from('especificacao_peneiras').select('*').eq('especificacao_id', dosagem.especificacao_id).order('abertura_mm', { ascending: false })).data ?? [],
       parametros: (await supabase.from('especificacao_parametros').select('*').eq('especificacao_id', dosagem.especificacao_id)).data ?? [],
     }),
   })
+
+  // As linhas da granulometria devem vir da especificação selecionada (a grafia das peneiras
+  // é a que o usuário cadastrou), preservando leituras já digitadas quando a peneira casa
+  // (via normalizarPeneira) com a nova lista. Mantém a lista padrão só se a especificação
+  // não tiver peneiras cadastradas.
+  useEffect(() => {
+    if (!dosagem) return
+    const peneirasEspec = (faixas?.peneiras ?? []) as { peneira: string; abertura_mm: number }[]
+    setGran(prev => {
+      const preservados = new Map(prev.leituras.map(l => [normalizarPeneira(l.peneira), l.retido]))
+      const rows = peneirasEspec.length
+        ? peneirasEspec.map(f => ({
+            peneira: f.peneira,
+            abertura: String(f.abertura_mm),
+            retido: preservados.get(normalizarPeneira(f.peneira)) ?? '',
+          }))
+        : peneirasPadrao.map(l => ({ ...l, retido: preservados.get(normalizarPeneira(l.peneira)) ?? '' }))
+      return { ...prev, leituras: rows }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dosagem?.especificacao_id, faixas])
 
   // ===== cálculo ao vivo =====
   const calc = useMemo((): { ok: true; teorPct: number; gmm: number; granRes: ReturnType<typeof calcularGranulometria> | null; marshallRes: ReturnType<typeof calcularMarshall> | null; rtdRes: ReturnType<typeof calcularRtd> | null; aval: ReturnType<typeof avaliarParametros>; conformeGeral: boolean } | { ok: false; problema: string } | null => {
@@ -76,11 +100,14 @@ export default function EnsaioCauqPage() {
         .filter(l => l.retido !== '')
         .map(l => ({ peneira: l.peneira, aberturaMm: n(l.abertura), retidoAcum: n(l.retido) }))
       const curvaTolerancias = (dosagem.curva_tolerancias ?? null) as Record<string, number> | null
+      const curvaTolerNorm = curvaTolerancias
+        ? new Map(Object.entries(curvaTolerancias).map(([k, v]) => [normalizarPeneira(k), v]))
+        : null
       const granRes = gran.pesoTotal && leituras.length
         ? calcularGranulometria(n(gran.pesoTotal), leituras,
             (faixas?.peneiras ?? []).map((f: { peneira: string; passante_min: number; passante_max: number; tolerancia_trabalho: number }) =>
               ({ peneira: f.peneira, passanteMin: f.passante_min, passanteMax: f.passante_max,
-                 toleranciaTrabalho: curvaTolerancias?.[f.peneira] ?? f.tolerancia_trabalho })),
+                 toleranciaTrabalho: curvaTolerNorm?.get(normalizarPeneira(f.peneira)) ?? f.tolerancia_trabalho })),
             dosagem.curva_projeto ?? undefined)
         : null
 
@@ -95,7 +122,7 @@ export default function EnsaioCauqPage() {
             })),
             { teorLigante: teorPct, densidadeLigante: Number(dosagem.densidade_ligante),
               densMaxTeorica: gmm, constantePrensa: n(constantePrensa),
-              passando200: granRes?.linhas.find(l => l.peneira === 'N. 200')?.pctPassando })
+              passando200: granRes?.linhas.find(l => normalizarPeneira(l.peneira) === normalizarPeneira('N. 200'))?.pctPassando })
         : null
 
       const rtdPreenchidos = rtdCps.filter(c => c.leitura)
