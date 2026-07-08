@@ -75,10 +75,12 @@ export default function EnsaioCauqPage() {
       const leituras: PeneiraLeitura[] = gran.leituras
         .filter(l => l.retido !== '')
         .map(l => ({ peneira: l.peneira, aberturaMm: n(l.abertura), retidoAcum: n(l.retido) }))
+      const curvaTolerancias = (dosagem.curva_tolerancias ?? null) as Record<string, number> | null
       const granRes = gran.pesoTotal && leituras.length
         ? calcularGranulometria(n(gran.pesoTotal), leituras,
             (faixas?.peneiras ?? []).map((f: { peneira: string; passante_min: number; passante_max: number; tolerancia_trabalho: number }) =>
-              ({ peneira: f.peneira, passanteMin: f.passante_min, passanteMax: f.passante_max, toleranciaTrabalho: f.tolerancia_trabalho })),
+              ({ peneira: f.peneira, passanteMin: f.passante_min, passanteMax: f.passante_max,
+                 toleranciaTrabalho: curvaTolerancias?.[f.peneira] ?? f.tolerancia_trabalho })),
             dosagem.curva_projeto ?? undefined)
         : null
 
