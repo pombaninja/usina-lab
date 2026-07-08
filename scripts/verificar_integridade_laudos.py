@@ -5,6 +5,11 @@ Roda ao vivo contra o banco de produção (Supabase), criando e removendo
 linhas de teste na faixa seq 996 / numero prefixo 'VERIF-INT-'. Não deve
 deixar nenhum resíduo, mesmo em caso de falha (try/finally).
 
+ATENÇÃO: a limpeza desativa temporariamente os triggers de imutabilidade
+(trg_laudo_imutavel / trg_lock_*) NA TABELA INTEIRA por alguns instantes.
+Execute preferencialmente fora do horário de uso do laboratório e nunca
+em paralelo com outra sessão editando laudos.
+
 A URL do banco é lida de C:\\Projetos\\usina-lab\\.backup.env (mesmo padrão
 usado por scripts/backup_local.py).
 
