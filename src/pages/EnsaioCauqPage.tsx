@@ -9,8 +9,8 @@ import { calcularRtd } from '../lib/calculos/rtd'
 import { avaliarParametros } from '../lib/calculos/avaliacao'
 import { fmt } from '../lib/formato'
 
-interface CpForm { pesoAr: string; pesoImerso: string; leituraEstab: string; fator: string; fluencia: string }
-const cpVazio: CpForm = { pesoAr: '', pesoImerso: '', leituraEstab: '', fator: '', fluencia: '' }
+interface CpForm { pesoAr: string; pesoImerso: string; leituraEstab: string; fator: string; fluencia: string; altura: string }
+const cpVazio: CpForm = { pesoAr: '', pesoImerso: '', leituraEstab: '', fator: '', fluencia: '', altura: '' }
 const n = (s: string) => (s === '' ? NaN : Number(s))
 
 // Lista padrão usada apenas como fallback quando a especificação não tem peneiras cadastradas
@@ -27,6 +27,7 @@ export default function EnsaioCauqPage() {
   const editando = !!id
   const [cab, setCab] = useState({ dosagem_id: '', cliente_obra_id: '', periodo: 'manha', placa_caminhao: '', operador: '', temperatura_cap: '', observacoes: '' })
   const [constantePrensa, setConstantePrensa] = useState('1.79')
+  const [correcaoFluencia, setCorrecaoFluencia] = useState('1')
   const [cps, setCps] = useState<CpForm[]>([{ ...cpVazio }, { ...cpVazio }, { ...cpVazio }])
   const [gran, setGran] = useState<{ pesoTotal: string; leituras: { peneira: string; abertura: string; retido: string }[] }>({
     pesoTotal: '',
@@ -55,8 +56,8 @@ export default function EnsaioCauqPage() {
       if (ensaioR.error) throw ensaioR.error
       return {
         ensaio: ensaioR.data as { data: string; dosagem_id: string; cliente_obra_id: string | null; periodo: string | null; placa_caminhao: string | null; operador: string | null; temperatura_cap: number | null; observacoes: string | null },
-        marshall: marshallR.data as { constante_prensa: number } | null,
-        cps: (cpsR.data ?? []) as { cp: number; peso_ar: number; peso_imerso: number; leitura_estabilidade: number; fator_correcao: number | null; leitura_fluencia_mm: number }[],
+        marshall: marshallR.data as { constante_prensa: number; correcao_fluencia: number | null } | null,
+        cps: (cpsR.data ?? []) as { cp: number; peso_ar: number; peso_imerso: number; leitura_estabilidade: number; fator_correcao: number | null; leitura_fluencia_mm: number; altura_cm: number | null }[],
         gran: granR.data as { peso_total: number; leituras: { peneira: string; abertura_mm: number; retido_acum: number }[] } | null,
         teor: teorR.data as { amostra_com_betume: number | null; amostra_sem_betume: number | null; umidade_pct: number | null; rice_peso_amostra: number | null; rice_frasco_agua: number | null; rice_frasco_amostra_agua: number | null; rice_fator_temp: number | null } | null,
         rtd: (rtdR.data ?? []) as { cp: number; leitura: number; diametro_cm: number; altura_cm: number }[],
@@ -78,12 +79,15 @@ export default function EnsaioCauqPage() {
       temperatura_cap: e.temperatura_cap != null ? String(e.temperatura_cap) : '',
       observacoes: e.observacoes ?? '',
     })
-    if (marshall) setConstantePrensa(String(marshall.constante_prensa))
+    if (marshall) {
+      setConstantePrensa(String(marshall.constante_prensa))
+      setCorrecaoFluencia(marshall.correcao_fluencia != null ? String(marshall.correcao_fluencia) : '1')
+    }
     if (cpsRows.length) {
       setCps([1, 2, 3].map(cp => {
         const c = cpsRows.find(x => x.cp === cp)
         return c
-          ? { pesoAr: String(c.peso_ar), pesoImerso: String(c.peso_imerso), leituraEstab: String(c.leitura_estabilidade), fator: c.fator_correcao != null ? String(c.fator_correcao) : '', fluencia: String(c.leitura_fluencia_mm) }
+          ? { pesoAr: String(c.peso_ar), pesoImerso: String(c.peso_imerso), leituraEstab: String(c.leitura_estabilidade), fator: c.fator_correcao != null ? String(c.fator_correcao) : '', fluencia: String(c.leitura_fluencia_mm), altura: c.altura_cm != null ? String(c.altura_cm) : '' }
           : { ...cpVazio }
       }))
     }
@@ -198,9 +202,11 @@ export default function EnsaioCauqPage() {
               leituraEstabilidade: n(c.leituraEstab) || 0,
               fatorCorrecao: c.fator ? n(c.fator) : undefined,
               leituraFluenciaMm: n(c.fluencia) || 0,
+              alturaCm: c.altura ? n(c.altura) : undefined,
             })),
             { teorLigante: teorPct, densidadeLigante: Number(dosagem.densidade_ligante),
               densMaxTeorica: gmm, constantePrensa: n(constantePrensa),
+              correcaoFluencia: n(correcaoFluencia) || 1,
               passando200: granRes?.linhas.find(l => normalizarPeneira(l.peneira) === normalizarPeneira('N. 200'))?.pctPassando })
         : null
 
@@ -222,7 +228,7 @@ export default function EnsaioCauqPage() {
     } catch (e) {
       return { ok: false, problema: (e as Error).message }
     }
-  }, [dosagem, faixas, cps, gran, teor, rice, rtdCps, constantePrensa])
+  }, [dosagem, faixas, cps, gran, teor, rice, rtdCps, constantePrensa, correcaoFluencia])
 
   // ===== salvar (edição) =====
   const salvarEdicao = useMutation({
@@ -248,14 +254,14 @@ export default function EnsaioCauqPage() {
       const cpsPreenchidos = cps.map((c, i) => ({ ...c, cp: i + 1 })).filter(c => c.pesoAr)
       if (cpsPreenchidos.length) {
         const { error: errM } = await supabase.from('cauq_marshall')
-          .upsert({ ensaio_id: ensaioId, constante_prensa: n(constantePrensa), gmm_ensaio: rice.pesoAmostra ? calc.gmm : null }, { onConflict: 'ensaio_id' })
+          .upsert({ ensaio_id: ensaioId, constante_prensa: n(constantePrensa), gmm_ensaio: rice.pesoAmostra ? calc.gmm : null, correcao_fluencia: correcaoFluencia ? n(correcaoFluencia) : null }, { onConflict: 'ensaio_id' })
         if (errM) throw new Error('Falha ao salvar dados Marshall: ' + errM.message)
       }
       if (cpsPreenchidos.length) {
         const { error: errCp } = await supabase.from('cauq_marshall_cp').upsert(cpsPreenchidos.map(c => ({
           ensaio_id: ensaioId, cp: c.cp, peso_ar: n(c.pesoAr), peso_imerso: n(c.pesoImerso),
           leitura_estabilidade: n(c.leituraEstab) || 0, fator_correcao: c.fator ? n(c.fator) : null,
-          leitura_fluencia_mm: n(c.fluencia) || 0,
+          leitura_fluencia_mm: n(c.fluencia) || 0, altura_cm: c.altura ? n(c.altura) : null,
         })), { onConflict: 'ensaio_id,cp' })
         if (errCp) throw new Error('Falha ao salvar corpos de prova Marshall: ' + errCp.message)
       }
@@ -328,11 +334,11 @@ export default function EnsaioCauqPage() {
       const inserts: PromiseLike<{ error: { message: string } | null }>[] = []
       const cpsPreenchidos = cps.map((c, i) => ({ ...c, cp: i + 1 })).filter(c => c.pesoAr)
       if (cpsPreenchidos.length) {
-        inserts.push(supabase.from('cauq_marshall').insert({ ensaio_id: id, constante_prensa: n(constantePrensa), gmm_ensaio: rice.pesoAmostra ? calc.gmm : null }))
+        inserts.push(supabase.from('cauq_marshall').insert({ ensaio_id: id, constante_prensa: n(constantePrensa), gmm_ensaio: rice.pesoAmostra ? calc.gmm : null, correcao_fluencia: correcaoFluencia ? n(correcaoFluencia) : null }))
         inserts.push(supabase.from('cauq_marshall_cp').insert(cpsPreenchidos.map(c => ({
           ensaio_id: id, cp: c.cp, peso_ar: n(c.pesoAr), peso_imerso: n(c.pesoImerso),
           leitura_estabilidade: n(c.leituraEstab) || 0, fator_correcao: c.fator ? n(c.fator) : null,
-          leitura_fluencia_mm: n(c.fluencia) || 0,
+          leitura_fluencia_mm: n(c.fluencia) || 0, altura_cm: c.altura ? n(c.altura) : null,
         }))))
       }
       if (gran.pesoTotal) inserts.push(supabase.from('cauq_granulometria').insert({
@@ -403,14 +409,15 @@ export default function EnsaioCauqPage() {
         <label className="text-sm">Operador<input className={inp} value={cab.operador} onChange={e => setCab({ ...cab, operador: e.target.value })} /></label>
         <label className="text-sm">Temp. CAP (°C)<input className={inp} type="number" value={cab.temperatura_cap} onChange={e => setCab({ ...cab, temperatura_cap: e.target.value })} /></label>
         <label className="text-sm">Constante da prensa<input className={inp} type="number" step="any" value={constantePrensa} onChange={e => setConstantePrensa(e.target.value)} /></label>
+        <label className="text-sm">Correção de fluência<input className={inp} type="number" step="any" value={correcaoFluencia} onChange={e => setCorrecaoFluencia(e.target.value)} /></label>
       </section>
 
       <section className="bg-white p-4 rounded-xl shadow">
         <h2 className="font-semibold mb-2">Marshall — corpos de prova</h2>
         <table className="w-full text-sm">
           <thead><tr className="text-left border-b">
-            <th className="p-2">CP</th><th>Peso ao ar (g)</th><th>Peso imerso (g)</th><th>Leitura estab.</th><th>Fator (vazio = tabela)</th><th>Fluência (mm)</th>
-            <th>Dens. ap.</th><th>Vazios %</th><th>Estab. corrig.</th>
+            <th className="p-2">CP</th><th>Peso ao ar (g)</th><th>Peso imerso (g)</th><th>Leitura estab.</th><th>Altura (cm)</th><th>Fator (vazio = tabela)</th><th>Leitura fluência</th>
+            <th>Dens. ap.</th><th>Vazios %</th><th>Estab. corrig.</th><th>Fluência (mm)</th>
           </tr></thead>
           <tbody>{cps.map((c, i) => {
             const r = calc?.ok ? calc.marshallRes?.cps[cps.filter((x, j) => j < i && x.pesoAr && x.pesoImerso).length] : undefined
@@ -418,13 +425,14 @@ export default function EnsaioCauqPage() {
             return (
               <tr key={i} className="border-b">
                 <td className="p-2 font-semibold">{i + 1}</td>
-                {(['pesoAr', 'pesoImerso', 'leituraEstab', 'fator', 'fluencia'] as const).map(k => (
+                {(['pesoAr', 'pesoImerso', 'leituraEstab', 'altura', 'fator', 'fluencia'] as const).map(k => (
                   <td key={k}><input className="border rounded p-1 w-28" type="number" step="any" value={c[k]}
                         onChange={e => setCps(cps.map((x, j) => j === i ? { ...x, [k]: e.target.value } : x))} /></td>
                 ))}
                 <td className="p-2">{preenchido && r ? fmt(r.densidadeAparente, 3) : ''}</td>
                 <td className="p-2">{preenchido && r ? fmt(r.vazios, 2) : ''}</td>
                 <td className="p-2">{preenchido && r ? fmt(r.estabilidadeCorrigida, 0) : ''}</td>
+                <td className="p-2">{preenchido && r ? fmt(r.fluenciaMm, 2) : ''}</td>
               </tr>
             )
           })}</tbody>
