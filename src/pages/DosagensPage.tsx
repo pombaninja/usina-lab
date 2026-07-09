@@ -224,25 +224,39 @@ export default function DosagensPage() {
         : await supabase.from('dosagens').insert(payload).select('id').single()
       if (error) throw error
 
-      if (isCbuq) {
-        const dosagemId = (salvo as { id: string }).id
-        const del = await supabase.from('dosagem_composicao').delete().eq('dosagem_id', dosagemId)
-        if (del.error) throw del.error
+      const dosagemId = (salvo as { id: string }).id
 
-        const linhasPreenchidas = composicaoLinhas.filter(l =>
-          l.origem.trim() || l.material.trim() || l.local.trim() || l.pct.trim() !== '' || l.densidade.trim() !== '')
-        if (linhasPreenchidas.length) {
-          const rows = linhasPreenchidas.map(l => ({
-            dosagem_id: dosagemId,
-            origem: l.origem.trim() || null,
-            material_nome: l.material.trim() || null,
-            local: l.local || null,
-            percentual: Number(l.pct),
-            densidade: l.densidade.trim() !== '' ? Number(l.densidade) : null,
-          }))
-          const ins = await supabase.from('dosagem_composicao').insert(rows)
-          if (ins.error) throw ins.error
+      // Reconciliação da composição roda para toda gravação, não só quando tipo === 'cbuq':
+      // isso garante limpeza de linhas órfãs quando o tipo é trocado para fora de cbuq.
+      const { data: antigas, error: errAntigas } = await supabase.from('dosagem_composicao').select('id').eq('dosagem_id', dosagemId)
+      if (errAntigas) throw errAntigas
+      const idsAntigos = (antigas ?? []).map((a: { id: string }) => a.id)
+
+      const linhasPreenchidas = composicaoLinhas.filter(l =>
+        l.origem.trim() || l.material.trim() || l.local.trim() || l.pct.trim() !== '' || l.densidade.trim() !== '')
+
+      if (isCbuq && linhasPreenchidas.length) {
+        // Insere as linhas novas primeiro; só remove as antigas se a inserção for bem-sucedida,
+        // para nunca perder composição já salva em caso de falha parcial.
+        const rows = linhasPreenchidas.map(l => ({
+          dosagem_id: dosagemId,
+          origem: l.origem.trim() || null,
+          material_nome: l.material.trim() || null,
+          local: l.local || null,
+          percentual: Number(l.pct),
+          densidade: l.densidade.trim() !== '' ? Number(l.densidade) : null,
+        }))
+        const ins = await supabase.from('dosagem_composicao').insert(rows)
+        if (ins.error) throw ins.error
+
+        if (idsAntigos.length) {
+          const del = await supabase.from('dosagem_composicao').delete().in('id', idsAntigos)
+          if (del.error) throw del.error
         }
+      } else if (idsAntigos.length) {
+        // tipo não é cbuq (ou é cbuq sem linhas preenchidas): apenas limpa composição antiga.
+        const del = await supabase.from('dosagem_composicao').delete().in('id', idsAntigos)
+        if (del.error) throw del.error
       }
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['dosagens'] }); limparForm() },
