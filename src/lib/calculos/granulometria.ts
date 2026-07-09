@@ -54,5 +54,7 @@ export function calcularGranulometria(
     }
     return linha
   })
+  // Peneiras sempre da maior para a menor abertura, independente da ordem de entrada
+  linhas.sort((a, b) => b.aberturaMm - a.aberturaMm)
   return { linhas, conforme: conformeGeral }
 }

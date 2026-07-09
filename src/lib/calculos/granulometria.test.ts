@@ -62,6 +62,19 @@ describe('granulometria - FX III Olimpia (golden)', () => {
   })
 })
 
+describe('granulometria - ordenação decrescente por abertura', () => {
+  it('sempre retorna linhas da maior para a menor abertura, independente da ordem de entrada', () => {
+    const leituras = [
+      { peneira: 'N. 10', aberturaMm: 2.0, retidoAcum: 1488 },
+      { peneira: '3/4"', aberturaMm: 19.0, retidoAcum: 0 },
+      { peneira: 'N. 200', aberturaMm: 0.075, retidoAcum: 1502 },
+      { peneira: '3/8"', aberturaMm: 9.53, retidoAcum: 0 },
+    ]
+    const r = calcularGranulometria(1506, leituras)
+    expect(r.linhas.map(l => l.aberturaMm)).toEqual([19, 9.53, 2, 0.075])
+  })
+})
+
 describe('normalizarPeneira', () => {
   it('equivale grafias comuns', () => {
     expect(normalizarPeneira('# 4')).toBe(normalizarPeneira('N. 04'))

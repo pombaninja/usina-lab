@@ -70,7 +70,7 @@ export default function LaudoImprimirPage() {
           <h2 className="font-bold border-b mb-2">Análise Granulométrica — DNER-ME 083/98</h2>
           <table className="w-full border mb-3">
             <thead><tr className="bg-slate-100"><th className="border p-1">Peneira</th><th className="border p-1">mm</th><th className="border p-1">% Passando</th><th className="border p-1">Faixa de trabalho</th><th className="border p-1">Especificada</th></tr></thead>
-            <tbody>{s.granulometria.linhas.map((l: { peneira: string; aberturaMm: number; pctPassando: number; trabMin?: number; trabMax?: number; espMin?: number; espMax?: number }) => (
+            <tbody>{[...s.granulometria.linhas].sort((a: { aberturaMm: number }, b: { aberturaMm: number }) => b.aberturaMm - a.aberturaMm).map((l: { peneira: string; aberturaMm: number; pctPassando: number; trabMin?: number; trabMax?: number; espMin?: number; espMax?: number }) => (
               <tr key={l.peneira}>
                 <td className="border p-1 text-center">{l.peneira}</td>
                 <td className="border p-1 text-center">{l.aberturaMm}</td>

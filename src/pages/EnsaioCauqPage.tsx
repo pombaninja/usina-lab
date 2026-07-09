@@ -21,6 +21,12 @@ const peneirasPadrao: { peneira: string; abertura: string }[] = [
   { peneira: 'N. 80', abertura: '0.18' }, { peneira: 'N. 200', abertura: '0.075' },
 ]
 
+// As peneiras devem sempre aparecer da maior para a menor abertura, independente
+// da ordem em que foram cadastradas na especificação.
+function ordenarPorAberturaDesc<T extends { abertura: string }>(rows: T[]): T[] {
+  return [...rows].sort((a, b) => Number(b.abertura) - Number(a.abertura))
+}
+
 export default function EnsaioCauqPage() {
   const nav = useNavigate()
   const { id } = useParams()
@@ -31,7 +37,7 @@ export default function EnsaioCauqPage() {
   const [cps, setCps] = useState<CpForm[]>([{ ...cpVazio }, { ...cpVazio }, { ...cpVazio }])
   const [gran, setGran] = useState<{ pesoTotal: string; leituras: { peneira: string; abertura: string; retido: string }[] }>({
     pesoTotal: '',
-    leituras: peneirasPadrao.map(l => ({ ...l, retido: '' })),
+    leituras: ordenarPorAberturaDesc(peneirasPadrao.map(l => ({ ...l, retido: '' }))),
   })
   const [granCarregado, setGranCarregado] = useState<{ peneira: string; retido_acum: number }[] | null>(null)
   const [teor, setTeor] = useState({ comBetume: '', semBetume: '', umidade: '0' })
@@ -176,7 +182,7 @@ export default function EnsaioCauqPage() {
             retido: preservados.get(normalizarPeneira(f.peneira)) || carregados.get(normalizarPeneira(f.peneira)) || '',
           }))
         : peneirasPadrao.map(l => ({ ...l, retido: preservados.get(normalizarPeneira(l.peneira)) || carregados.get(normalizarPeneira(l.peneira)) || '' }))
-      return { ...prev, leituras: rows }
+      return { ...prev, leituras: ordenarPorAberturaDesc(rows) }
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dosagem?.especificacao_id, faixas, granCarregado])
