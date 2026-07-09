@@ -1,4 +1,5 @@
 import { Fragment, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth, podeNoModulo } from '../lib/auth'
@@ -476,7 +477,7 @@ export default function DosagensPage() {
       )}
 
       <table className="w-full bg-white rounded-xl shadow text-sm">
-        <thead><tr className="text-left border-b"><th className="p-3">Nome</th><th>Rev.</th><th>Empresa</th><th>Especificação</th><th>Contexto/Tipo</th><th>Teor ótimo</th><th>Gmm</th>{podeEditar && <th />}</tr></thead>
+        <thead><tr className="text-left border-b"><th className="p-3">Nome</th><th>Rev.</th><th>Empresa</th><th>Especificação</th><th>Contexto/Tipo</th><th>Teor ótimo</th><th>Gmm</th><th /></tr></thead>
         <tbody>{atuais.map(d => {
           const familia = String(d.projeto_pai_id ?? d.id)
           const historico = historicoPorFamilia.get(familia) ?? [d]
@@ -491,16 +492,21 @@ export default function DosagensPage() {
                 <td>{d.especificacoes?.nome}</td>
                 <td>{CONTEXTO_LABEL[String(d.contexto ?? '')] ?? '—'} · {TIPO_LABEL[String(d.tipo ?? '')] ?? String(d.tipo ?? '—')}</td>
                 <td>{String(d.teor_otimo ?? '')}</td><td>{String(d.dens_max_teorica_projeto ?? '')}</td>
-                {podeEditar && (
-                  <td className="p-3 space-x-2 whitespace-nowrap">
-                    <button className="text-blue-700" disabled={salvar.isPending || criarRevisao.isPending} onClick={() => abrirEdicao(d)}>Editar</button>
-                    <button className="text-emerald-700" disabled={salvar.isPending || criarRevisao.isPending} onClick={() => criarRevisao.mutate(d.id)}>Criar revisão</button>
-                  </td>
-                )}
+                <td className="p-3 space-x-2 whitespace-nowrap">
+                  {podeEditar && (
+                    <>
+                      <button className="text-blue-700" disabled={salvar.isPending || criarRevisao.isPending} onClick={() => abrirEdicao(d)}>Editar</button>
+                      <button className="text-emerald-700" disabled={salvar.isPending || criarRevisao.isPending} onClick={() => criarRevisao.mutate(d.id)}>Criar revisão</button>
+                    </>
+                  )}
+                  {(d.tipo === 'cbuq' || d.tipo === 'cbuqf') && (
+                    <Link className="text-purple-700" to={`/projetos/${d.id}/marshall`}>Dosagem Marshall</Link>
+                  )}
+                </td>
               </tr>
               {temHistorico && (
                 <tr className="border-b bg-slate-50">
-                  <td colSpan={podeEditar ? 8 : 7} className="px-3 py-1 text-xs text-slate-500">
+                  <td colSpan={8} className="px-3 py-1 text-xs text-slate-500">
                     <button type="button" className="underline" onClick={() => toggleRevisoes(familia)}>
                       {aberto ? 'Ocultar revisões anteriores' : `Ver revisões (${historico.length})`}
                     </button>

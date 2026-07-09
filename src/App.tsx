@@ -15,6 +15,7 @@ import InsumosDiaPage from './pages/insumos/InsumosDiaPage'
 import EntradasPage from './pages/insumos/EntradasPage'
 import InsumosHistoricoPage from './pages/insumos/InsumosHistoricoPage'
 import DosagensPage from './pages/DosagensPage'
+import ProjetoMarshallPage from './pages/ProjetoMarshallPage'
 import EnsaiosListaPage from './pages/EnsaiosListaPage'
 import EnsaioCauqPage from './pages/EnsaioCauqPage'
 import EnsaioDetalhePage from './pages/EnsaioDetalhePage'
@@ -43,6 +44,7 @@ export default function App() {
               <Route path="/insumos/entradas" element={<EntradasPage />} />
               <Route path="/insumos/historico" element={<InsumosHistoricoPage />} />
               <Route path="/dosagens" element={<DosagensPage />} />
+              <Route path="/projetos/:id/marshall" element={<ProjetoMarshallPage />} />
               <Route path="/ensaios" element={<EnsaiosListaPage />} />
               <Route path="/ensaios/novo" element={<EnsaioCauqPage />} />
               <Route path="/ensaios/:id/editar" element={<EnsaioCauqPage />} />
