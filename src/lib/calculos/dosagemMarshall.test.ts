@@ -31,15 +31,18 @@ describe('calcularDosagemMarshall - aba Marshall FX 9,5 (golden)', () => {
     expect(r.pontos[0].vazios).toBeCloseTo(3.85, 2)
   })
 
-  it('VCB / VAM / RBV do teor 4,0% (sanidade)', () => {
+  it('VCB / VAM / RBV do teor 4,0% — golden calculado por CP e depois mediado (paridade com marshall.ts)', () => {
+    // Golden independente: vcb/vam/rbv calculados por CP (usando a densidade/vazios
+    // DAQUELE CP) e só então mediados — não derivados da densidade/vazios já médios
+    // do teor, que divergiria por serem razões não-lineares (gap de Jensen).
+    // CP1: rbv 66.50, CP2: rbv 66.80, CP3: rbv 64.94 → média 66.08
+    // CP1: vcb 10.10, CP2: vcb 10.11, CP3: vcb 10.07 → média 10.09
+    // CP1: vam 15.19, CP2: vam 15.14, CP3: vam 15.50 → média 15.28
     const r = calcularDosagemMarshall(cpsTeor40, params)
     const p = r.pontos[0]
-    const vcbEsperado = (p.densidadeAparente * 4.0) / params.densidadeRealCap
-    const vamEsperado = p.vazios + vcbEsperado
-    const rbvEsperado = (vcbEsperado * 100) / vamEsperado
-    expect(p.vcb).toBeCloseTo(vcbEsperado, 6)
-    expect(p.vam).toBeCloseTo(vamEsperado, 6)
-    expect(p.rbv).toBeCloseTo(rbvEsperado, 6)
+    expect(p.vcb).toBeCloseTo(10.09, 2)
+    expect(p.vam).toBeCloseTo(15.28, 2)
+    expect(p.rbv).toBeCloseTo(66.08, 2)
   })
 
   it('combinando os dois teores: pontos ordenados e teor ótimo sugerido por interpolação', () => {

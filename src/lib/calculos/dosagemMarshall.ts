@@ -34,35 +34,34 @@ export function calcularDosagemMarshall(
     .map(([teor, grupo]) => {
       if (grupo.length === 0) throw new Error(`Teor ${teor}% não tem corpos de prova informados`)
 
-      // Cada CP contribui com densidade aparente, vazios, estabilidade e fluência;
-      // essas quatro grandezas são calculadas por CP e depois têm sua MÉDIA tomada
-      // por teor. VCB/VAM/RBV, por sua vez, derivam da densidade aparente e dos
-      // vazios já médios do teor (não da média das razões por CP, que seria
-      // enviesada por serem razões não-lineares).
+      // Cada CP contribui com densidade aparente, vazios, VCB, VAM, RBV, estabilidade
+      // e fluência — todas calculadas por CP (VCB/VAM/RBV usando a densidade/vazios
+      // DAQUELE CP) — e só então têm sua MÉDIA tomada por teor. Isso espelha
+      // marshall.ts (medias por chave) e a planilha real (aba Marshall: cada
+      // grandeza é calculada por CP nas linhas 15-17 e depois mediada na linha 19).
+      // Calcular vcb/vam/rbv a partir da densidade/vazios já médios do teor
+      // divergiria por serem razões não-lineares (gap de Jensen).
       const calculados = grupo.map(cp => {
         const volume = cp.pesoAr - cp.pesoImerso
         if (volume <= 0) throw new Error(`Peso imerso deve ser menor que peso ao ar (teor ${cp.teor}%, CP ${cp.cp})`)
         const densidadeAparente = cp.pesoAr / volume
         const vazios = ((cp.riceTeorica - densidadeAparente) / cp.riceTeorica) * 100
+        const vcb = (densidadeAparente * teor) / params.densidadeRealCap
+        const vam = vazios + vcb
+        const rbv = (vcb * 100) / vam
         const fator = cp.fatorCorrecao ?? (cp.alturaCm != null ? fatorCorrecaoPorEspessura(cp.alturaCm) : fatorCorrecaoPorVolume(volume))
         const estabilidade = (cp.leituraEstabilidade ?? 0) * params.constantePrensa * fator
         const fluencia = (cp.leituraFluencia ?? 0) * (params.correcaoFluencia ?? 1)
-        return { densidadeAparente, vazios, estabilidade, fluencia }
+        return { densidadeAparente, vazios, vcb, vam, rbv, estabilidade, fluencia }
       })
-
-      const densidadeAparente = media(calculados.map(c => c.densidadeAparente))
-      const vazios = media(calculados.map(c => c.vazios))
-      const vcb = (densidadeAparente * teor) / params.densidadeRealCap
-      const vam = vazios + vcb
-      const rbv = (vcb * 100) / vam
 
       return {
         teor,
-        densidadeAparente,
-        vazios,
-        vcb,
-        vam,
-        rbv,
+        densidadeAparente: media(calculados.map(c => c.densidadeAparente)),
+        vazios: media(calculados.map(c => c.vazios)),
+        vcb: media(calculados.map(c => c.vcb)),
+        vam: media(calculados.map(c => c.vam)),
+        rbv: media(calculados.map(c => c.rbv)),
         estabilidade: media(calculados.map(c => c.estabilidade)),
         fluencia: media(calculados.map(c => c.fluencia)),
       }
