@@ -500,7 +500,10 @@ export default function DosagensPage() {
                     </>
                   )}
                   {(d.tipo === 'cbuq' || d.tipo === 'cbuqf') && (
-                    <Link className="text-purple-700" to={`/projetos/${d.id}/marshall`}>Dosagem Marshall</Link>
+                    <>
+                      <Link className="text-purple-700" to={`/projetos/${d.id}/marshall`}>Dosagem Marshall</Link>
+                      <Link className="text-indigo-700" to={`/projetos/${d.id}/agregados`}>Agregados</Link>
+                    </>
                   )}
                 </td>
               </tr>
