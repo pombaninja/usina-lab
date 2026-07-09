@@ -105,7 +105,7 @@ export default function ProjetoMoldagemPage() {
   useEffect(() => {
     if (combinadaCarregada) return
     if (!peneirasEspec || !peneirasEspec.length) return
-    if (combinadaAuto === null && agregados === undefined) return // aguarda a query de agregados resolver
+    if (agregados === undefined || composicao === undefined) return // aguarda ambas as consultas resolverem
     const base: Record<string, string> = {}
     for (const p of peneirasEspec) {
       const achado = combinadaAuto?.find(l => normalizarPeneira(l.peneira) === normalizarPeneira(p.peneira))
@@ -113,7 +113,7 @@ export default function ProjetoMoldagemPage() {
     }
     setCombinadaManual(base)
     setCombinadaCarregada(true)
-  }, [peneirasEspec, combinadaAuto, agregados, combinadaCarregada])
+  }, [peneirasEspec, combinadaAuto, agregados, composicao, combinadaCarregada])
 
   useEffect(() => {
     if (teoresCarregados) return
@@ -139,7 +139,7 @@ export default function ProjetoMoldagemPage() {
       const chave = normalizarPeneira(p.peneira)
       const valor = combinadaManual[chave]
       const pctPassa = valor !== undefined && valor !== '' ? Number(valor) : null
-      const conforme = pctPassa !== null && Number.isFinite(pctPassa) ? pctPassa >= p.passante_min && pctPassa <= p.passante_max : null
+      const conforme = pctPassa !== null && Number.isFinite(pctPassa) ? pctPassa >= p.passante_min - 1e-9 && pctPassa <= p.passante_max + 1e-9 : null
       return { peneira: p.peneira, aberturaMm: p.abertura_mm, passanteMin: p.passante_min, passanteMax: p.passante_max, pctPassa, conforme }
     })
   }, [peneiras, combinadaManual])
