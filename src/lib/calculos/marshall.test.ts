@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { calcularMarshall, fatorCorrecaoPorVolume } from './marshall'
+import { calcularMarshall, fatorCorrecaoPorVolume, fatorCorrecaoPorEspessura } from './marshall'
 
 describe('marshall - FX III Olimpia (golden)', () => {
   const cps = [
@@ -34,15 +34,50 @@ describe('marshall - FX III Olimpia (golden)', () => {
   })
 })
 
-describe('fatorCorrecaoPorVolume (tabela NBR 12891)', () => {
-  it('volume 500 cm³ → fator 1,04', () => {
+describe('fatorCorrecaoPorVolume (tabela DER-SP / DNER-ME 043)', () => {
+  it('volume 514,8 cm³ (linha exata) → fator 1,0', () => {
+    expect(fatorCorrecaoPorVolume(514.8)).toBe(1)
+  })
+  it('volume 411,8 cm³ (extremo inferior da tabela) → fator 1,46', () => {
+    expect(fatorCorrecaoPorVolume(411.8)).toBe(1.46)
+  })
+  it('volume 617,8 cm³ (extremo superior da tabela) → fator 0,76', () => {
+    expect(fatorCorrecaoPorVolume(617.8)).toBe(0.76)
+  })
+  it('volume 500 cm³ (sem linha exata) → usa o volume mais próximo (501,6 → fator 1,04)', () => {
     expect(fatorCorrecaoPorVolume(500)).toBe(1.04)
   })
-  it('volume 460 cm³ → fator 1,19; volume 570 cm³ → fator 0,86', () => {
-    expect(fatorCorrecaoPorVolume(460)).toBe(1.19)
-    expect(fatorCorrecaoPorVolume(570)).toBe(0.86)
+  it('volume fora da tabela não lança erro — satura na ponta mais próxima', () => {
+    expect(fatorCorrecaoPorVolume(400)).toBe(1.46)
+    expect(fatorCorrecaoPorVolume(700)).toBe(0.76)
   })
-  it('volume fora da tabela lança erro pedindo fator manual', () => {
-    expect(() => fatorCorrecaoPorVolume(400)).toThrow(/fora da tabela/)
+})
+
+describe('fatorCorrecaoPorEspessura (tabela DER-SP / DNER-ME 043)', () => {
+  it('espessura 6,35 cm (linha exata) → fator 1,0', () => {
+    expect(fatorCorrecaoPorEspessura(6.35)).toBe(1)
+  })
+  it('espessura 5,08 cm (extremo inferior) → fator 1,46', () => {
+    expect(fatorCorrecaoPorEspessura(5.08)).toBe(1.46)
+  })
+  it('espessura 7,62 cm (extremo superior) → fator 0,76', () => {
+    expect(fatorCorrecaoPorEspessura(7.62)).toBe(0.76)
+  })
+})
+
+describe('correção de fluência', () => {
+  it('fluência lida é multiplicada pelo fator de correção do ensaio (planilha: 0,32)', () => {
+    const r = calcularMarshall(
+      [{ pesoAr: 1200, pesoImerso: 700, leituraEstabilidade: 0, fatorCorrecao: 1, leituraFluenciaMm: 8.4375 }],
+      { teorLigante: 5, densidadeLigante: 1.009, densMaxTeorica: 2.6, constantePrensa: 1.782, correcaoFluencia: 0.32 },
+    )
+    expect(r.cps[0].fluenciaMm).toBeCloseTo(2.7, 3)
+  })
+  it('sem correção informada, fluência lida passa direto (fator implícito 1)', () => {
+    const r = calcularMarshall(
+      [{ pesoAr: 1200, pesoImerso: 700, leituraEstabilidade: 0, fatorCorrecao: 1, leituraFluenciaMm: 3.5 }],
+      { teorLigante: 5, densidadeLigante: 1.009, densMaxTeorica: 2.6, constantePrensa: 1.782 },
+    )
+    expect(r.cps[0].fluenciaMm).toBe(3.5)
   })
 })
