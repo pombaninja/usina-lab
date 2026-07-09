@@ -12,7 +12,7 @@ export default function Layout() {
         {perfis['ensaios_usina'] && <>
           <Link to="/ensaios">Ensaios</Link>
           <Link to="/laudos">Laudos</Link>
-          <Link to="/dosagens">Dosagens</Link>
+          <Link to="/dosagens">Projetos</Link>
         </>}
         {perfis['insumos'] && <>
           <Link to="/insumos">Insumos</Link>
