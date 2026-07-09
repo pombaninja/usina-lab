@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth, podeNoModulo } from '../lib/auth'
@@ -15,6 +15,9 @@ type Dosagem = Record<string, unknown> & {
   curva_projeto?: Record<string, number> | null
   curva_tolerancias?: Record<string, number> | null
   parametros_projeto?: Record<string, unknown> | null
+  revisao?: number | null
+  projeto_pai_id?: string | null
+  criado_em?: string | null
 }
 const linhaVazia = (): LinhaCurva => ({ peneira: '', passante: '', tolerancia: '' })
 const linhaComposicaoVazia = (): LinhaComposicao => ({ origem: '', material: '', local: '', pct: '', densidade: '' })
@@ -94,6 +97,7 @@ export default function DosagensPage() {
   const [composicaoLinhas, setComposicaoLinhas] = useState<LinhaComposicao[]>([])
   const [parametros, setParametros] = useState<Record<string, string>>({})
   const [erro, setErro] = useState('')
+  const [revisoesAbertas, setRevisoesAbertas] = useState<Set<string>>(new Set())
 
   const { data: empresas } = useQuery({ queryKey: ['empresas'], queryFn: async () => (await supabase.from('empresas').select('id, nome_exibicao')).data ?? [] })
   const { data: especs } = useQuery({ queryKey: ['especificacoes'], queryFn: async () => (await supabase.from('especificacoes').select('id, nome')).data ?? [] })
@@ -101,6 +105,36 @@ export default function DosagensPage() {
     queryKey: ['dosagens'],
     queryFn: async () => (await supabase.from('dosagens').select('*, empresas(nome_exibicao), especificacoes(nome)').order('criado_em', { ascending: false })).data as Dosagem[] ?? [],
   })
+
+  // A lista principal mostra só a revisão mais recente de cada família de projeto
+  // (família = coalesce(projeto_pai_id, id)); o histórico completo fica disponível
+  // via "Ver revisões" por linha.
+  const { atuais, historicoPorFamilia } = useMemo(() => {
+    const porFamilia = new Map<string, Dosagem[]>()
+    for (const d of dosagens ?? []) {
+      const familia = String(d.projeto_pai_id ?? d.id)
+      const arr = porFamilia.get(familia) ?? []
+      arr.push(d)
+      porFamilia.set(familia, arr)
+    }
+    const atuais: Dosagem[] = []
+    const historicoPorFamilia = new Map<string, Dosagem[]>()
+    for (const [familia, rows] of porFamilia) {
+      const ordenadas = [...rows].sort((a, b) => Number(a.revisao ?? 0) - Number(b.revisao ?? 0))
+      atuais.push(ordenadas[ordenadas.length - 1])
+      historicoPorFamilia.set(familia, ordenadas)
+    }
+    return { atuais, historicoPorFamilia }
+  }, [dosagens])
+
+  function toggleRevisoes(familia: string) {
+    setRevisoesAbertas(prev => {
+      const next = new Set(prev)
+      if (next.has(familia)) next.delete(familia)
+      else next.add(familia)
+      return next
+    })
+  }
 
   function limparForm() {
     setEditando(null)
@@ -260,6 +294,24 @@ export default function DosagensPage() {
       }
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['dosagens'] }); limparForm() },
+    onError: (e: Error) => setErro(e.message),
+  })
+
+  // Cria uma nova revisão (snapshot do projeto atual, revisao+1) e já abre a
+  // revisão nova no formulário de edição.
+  const criarRevisao = useMutation({
+    mutationFn: async (dosagemId: string) => {
+      const { data, error } = await supabase.rpc('criar_revisao_projeto', { p_dosagem: dosagemId })
+      if (error) throw error
+      return data as string
+    },
+    onSuccess: async (novoId) => {
+      await qc.invalidateQueries({ queryKey: ['dosagens'] })
+      const { data, error } = await supabase.from('dosagens')
+        .select('*, empresas(nome_exibicao), especificacoes(nome)').eq('id', novoId).single()
+      if (error) { setErro(error.message); return }
+      await abrirEdicao(data as Dosagem)
+    },
     onError: (e: Error) => setErro(e.message),
   })
 
@@ -424,16 +476,51 @@ export default function DosagensPage() {
       )}
 
       <table className="w-full bg-white rounded-xl shadow text-sm">
-        <thead><tr className="text-left border-b"><th className="p-3">Nome</th><th>Empresa</th><th>Especificação</th><th>Contexto/Tipo</th><th>Teor ótimo</th><th>Gmm</th>{podeEditar && <th />}</tr></thead>
-        <tbody>{(dosagens ?? []).map(d => (
-          <tr key={d.id} className="border-b">
-            <td className="p-3">{String(d.nome)}</td><td>{d.empresas?.nome_exibicao}</td>
-            <td>{d.especificacoes?.nome}</td>
-            <td>{CONTEXTO_LABEL[String(d.contexto ?? '')] ?? '—'} · {TIPO_LABEL[String(d.tipo ?? '')] ?? String(d.tipo ?? '—')}</td>
-            <td>{String(d.teor_otimo ?? '')}</td><td>{String(d.dens_max_teorica_projeto ?? '')}</td>
-            {podeEditar && <td className="p-3"><button className="text-blue-700" disabled={salvar.isPending} onClick={() => abrirEdicao(d)}>Editar</button></td>}
-          </tr>
-        ))}</tbody>
+        <thead><tr className="text-left border-b"><th className="p-3">Nome</th><th>Rev.</th><th>Empresa</th><th>Especificação</th><th>Contexto/Tipo</th><th>Teor ótimo</th><th>Gmm</th>{podeEditar && <th />}</tr></thead>
+        <tbody>{atuais.map(d => {
+          const familia = String(d.projeto_pai_id ?? d.id)
+          const historico = historicoPorFamilia.get(familia) ?? [d]
+          const temHistorico = historico.length > 1
+          const aberto = revisoesAbertas.has(familia)
+          return (
+            <Fragment key={familia}>
+              <tr className="border-b">
+                <td className="p-3">{String(d.nome)}</td>
+                <td>Rev. {String(d.revisao ?? 0)}</td>
+                <td>{d.empresas?.nome_exibicao}</td>
+                <td>{d.especificacoes?.nome}</td>
+                <td>{CONTEXTO_LABEL[String(d.contexto ?? '')] ?? '—'} · {TIPO_LABEL[String(d.tipo ?? '')] ?? String(d.tipo ?? '—')}</td>
+                <td>{String(d.teor_otimo ?? '')}</td><td>{String(d.dens_max_teorica_projeto ?? '')}</td>
+                {podeEditar && (
+                  <td className="p-3 space-x-2 whitespace-nowrap">
+                    <button className="text-blue-700" disabled={salvar.isPending || criarRevisao.isPending} onClick={() => abrirEdicao(d)}>Editar</button>
+                    <button className="text-emerald-700" disabled={salvar.isPending || criarRevisao.isPending} onClick={() => criarRevisao.mutate(d.id)}>Criar revisão</button>
+                  </td>
+                )}
+              </tr>
+              {temHistorico && (
+                <tr className="border-b bg-slate-50">
+                  <td colSpan={podeEditar ? 8 : 7} className="px-3 py-1 text-xs text-slate-500">
+                    <button type="button" className="underline" onClick={() => toggleRevisoes(familia)}>
+                      {aberto ? 'Ocultar revisões anteriores' : `Ver revisões (${historico.length})`}
+                    </button>
+                    {aberto && (
+                      <ul className="mt-1 space-y-0.5">
+                        {historico.map(h => (
+                          <li key={h.id}>
+                            Rev. {String(h.revisao ?? 0)} — {String(h.nome)}
+                            {h.criado_em ? ` — ${new Date(h.criado_em).toLocaleDateString('pt-BR')}` : ''}
+                            {String(h.id) === String(d.id) ? ' (atual)' : ''}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </td>
+                </tr>
+              )}
+            </Fragment>
+          )
+        })}</tbody>
       </table>
     </div>
   )

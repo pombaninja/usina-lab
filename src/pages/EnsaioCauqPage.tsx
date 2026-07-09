@@ -119,10 +119,37 @@ export default function EnsaioCauqPage() {
 
   const { data: dosagens } = useQuery({
     queryKey: ['dosagens'],
-    queryFn: async () => (await supabase.from('dosagens').select('*, especificacoes(id, nome)').eq('ativa', true)).data ?? [],
+    queryFn: async () => {
+      const { data } = await supabase.from('dosagens').select('*, especificacoes(id, nome)').eq('ativa', true)
+      const rows = (data ?? []) as { id: string; nome: string; projeto_pai_id: string | null; revisao: number | null }[]
+      // O dropdown de seleção deve listar sempre a revisão mais recente de cada
+      // família de projeto (família = coalesce(projeto_pai_id, id)). Ensaios já
+      // lançados mantêm a revisão original gravada — isto não é migrado.
+      const porFamilia = new Map<string, typeof rows[number]>()
+      for (const d of rows) {
+        const familia = String(d.projeto_pai_id ?? d.id)
+        const atual = porFamilia.get(familia)
+        if (!atual || Number(d.revisao ?? 0) > Number(atual.revisao ?? 0)) porFamilia.set(familia, d)
+      }
+      return [...porFamilia.values()]
+    },
   })
+  // Em modo edição, o ensaio pode apontar para uma revisão de projeto já
+  // superada (revisão antiga, congelada) — o dropdown precisa incluí-la senão
+  // a seleção atual do ensaio "some" da lista.
+  const dosagemIdDoEnsaio = ensaioExistente?.ensaio.dosagem_id
+  const { data: dosagemDoEnsaio } = useQuery({
+    queryKey: ['dosagem-do-ensaio', dosagemIdDoEnsaio],
+    enabled: editando && !!dosagemIdDoEnsaio,
+    queryFn: async () => (await supabase.from('dosagens').select('*, especificacoes(id, nome)').eq('id', dosagemIdDoEnsaio).maybeSingle()).data,
+  })
+  const dosagensDisponiveis = useMemo(() => {
+    const base = dosagens ?? []
+    if (dosagemDoEnsaio && !base.some((d: { id: string }) => d.id === dosagemDoEnsaio.id)) return [...base, dosagemDoEnsaio]
+    return base
+  }, [dosagens, dosagemDoEnsaio])
   const { data: obras } = useQuery({ queryKey: ['clientes_obras'], queryFn: async () => (await supabase.from('clientes_obras').select('id, cliente, obra')).data ?? [] })
-  const dosagem = useMemo(() => (dosagens ?? []).find((d: { id: string }) => d.id === cab.dosagem_id), [dosagens, cab.dosagem_id])
+  const dosagem = useMemo(() => dosagensDisponiveis.find((d: { id: string }) => d.id === cab.dosagem_id), [dosagensDisponiveis, cab.dosagem_id])
   const { data: faixas } = useQuery({
     queryKey: ['faixas', dosagem?.especificacao_id],
     enabled: !!dosagem,
@@ -394,7 +421,9 @@ export default function EnsaioCauqPage() {
         <label className="text-sm col-span-2">Dosagem / Faixa *
           <select className={inp} value={cab.dosagem_id} onChange={e => setCab({ ...cab, dosagem_id: e.target.value })}>
             <option value="">—</option>
-            {(dosagens ?? []).map((d: { id: string; nome: string }) => <option key={d.id} value={d.id}>{d.nome}</option>)}
+            {dosagensDisponiveis.map((d: { id: string; nome: string; revisao: number | null }) => (
+              <option key={d.id} value={d.id}>{d.nome} — Rev. {d.revisao ?? 0}</option>
+            ))}
           </select></label>
         <label className="text-sm">Obra
           <select className={inp} value={cab.cliente_obra_id} onChange={e => setCab({ ...cab, cliente_obra_id: e.target.value })}>
