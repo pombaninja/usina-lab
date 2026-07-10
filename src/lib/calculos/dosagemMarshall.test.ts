@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { calcularDosagemMarshall, type CpDosagem } from './dosagemMarshall'
+import { calcularDosagemMarshall, interpolarNoTeor, type CpDosagem } from './dosagemMarshall'
 
 describe('calcularDosagemMarshall - aba Marshall FX 9,5 (golden)', () => {
   const params = { densidadeRealCap: 1.004, constantePrensa: 1.79 }
@@ -59,6 +59,100 @@ describe('calcularDosagemMarshall - aba Marshall FX 9,5 (golden)', () => {
     expect(r.teorOtimoSugerido).toBeCloseTo(esperado, 6)
     expect(r.teorOtimoSugerido).toBeGreaterThan(4.0)
     expect(r.teorOtimoSugerido).toBeLessThan(4.5)
+  })
+})
+
+describe('calcularDosagemMarshall - detalhe por CP (golden calculado à mão)', () => {
+  // CP único, valores escolhidos para conferência independente:
+  //   volume = 1200 - 728 = 472
+  //   densidade aparente = 1200 / 472            = 2.5423729
+  //   vazios = (2.650 - 2.5423729)/2.650 * 100   = 4.061401
+  //   vcb = (2.5423729 * 5.0) / 1.004            = 12.661219
+  //   vam = 4.061401 + 12.661219                 = 16.722620
+  //   rbv = 12.661219 * 100 / 16.722620          = 75.71338
+  //   calcul = 800 * 1.79                        = 1432
+  //   corrig = 1432 * 1.0 (fator informado)      = 1432
+  //   fluência mm = 2.0 * 1                       = 2.0
+  //   fluência pol = 2.0 * (1/32) * 100           = 6.25
+  const params = { densidadeRealCap: 1.004, constantePrensa: 1.79, correcaoFluencia: 1 }
+  const cp: CpDosagem = {
+    teor: 5.0, cp: 1, pesoAr: 1200, pesoImerso: 728, riceTeorica: 2.650,
+    leituraEstabilidade: 800, fatorCorrecao: 1.0, leituraFluencia: 2.0,
+  }
+
+  it('expõe todas as grandezas por CP, incl. calcul/corrig e fluência em polegadas', () => {
+    const r = calcularDosagemMarshall([cp], params)
+    expect(r.detalhes).toHaveLength(1)
+    const d = r.detalhes[0]
+    expect(d.teor).toBe(5.0)
+    expect(d.cps).toHaveLength(1)
+    const c = d.cps[0]
+    expect(c.volume).toBeCloseTo(472, 3)
+    expect(c.densidadeAparente).toBeCloseTo(2.5424, 4)
+    expect(c.vazios).toBeCloseTo(4.0614, 4)
+    expect(c.vcb).toBeCloseTo(12.6612, 4)
+    expect(c.vam).toBeCloseTo(16.7226, 4)
+    expect(c.rbv).toBeCloseTo(75.713, 3)
+    expect(c.fator).toBe(1.0)
+    expect(c.leitura).toBe(800)
+    expect(c.calcul).toBeCloseTo(1432, 3)
+    expect(c.corrig).toBeCloseTo(1432, 3)
+    expect(c.fluenciaMm).toBeCloseTo(2.0, 3)
+    expect(c.fluenciaPol).toBeCloseTo(6.25, 3)
+    expect(c.inconsistente).toBe(false)
+    // média de um CP único = o próprio CP
+    expect(d.media.calcul).toBeCloseTo(1432, 3)
+    expect(d.media.corrig).toBeCloseTo(1432, 3)
+    expect(d.media.fluenciaPol).toBeCloseTo(6.25, 3)
+  })
+
+  it('marca inconsistente quando Rice ≤ densidade aparente (vazios ≤ 0)', () => {
+    // densidade aparente = 1200 / 474 = 2.531646; Rice 2.50 ≤ densidade → inconsistente
+    const cpRuim: CpDosagem = { teor: 5.5, cp: 1, pesoAr: 1200, pesoImerso: 726, riceTeorica: 2.50 }
+    const r = calcularDosagemMarshall([cpRuim], params)
+    const c = r.detalhes[0].cps[0]
+    expect(c.densidadeAparente).toBeCloseTo(2.5316, 4)
+    expect(c.inconsistente).toBe(true)
+    expect(c.vazios).toBeLessThanOrEqual(0)
+  })
+})
+
+describe('interpolarNoTeor', () => {
+  const params = { densidadeRealCap: 1.004, constantePrensa: 1.79 }
+  const cps: CpDosagem[] = [
+    { teor: 4.0, cp: 1, pesoAr: 1197.5, pesoImerso: 725.3, riceTeorica: 2.672, leituraEstabilidade: 800, fatorCorrecao: 1, leituraFluencia: 2 },
+    { teor: 4.5, cp: 1, pesoAr: 1202.57, pesoImerso: 730.01, riceTeorica: 2.653, leituraEstabilidade: 850, fatorCorrecao: 1, leituraFluencia: 3 },
+  ]
+
+  it('retorna null quando não há pontos', () => {
+    expect(interpolarNoTeor([], 4.25)).toBeNull()
+  })
+
+  it('interpola linearmente entre os dois pontos que cercam o teor alvo', () => {
+    const { pontos } = calcularDosagemMarshall(cps, params)
+    const a = pontos[0]
+    const b = pontos[1]
+    const alvo = 4.25
+    const f = (alvo - a.teor) / (b.teor - a.teor) // = 0.5
+    const r = interpolarNoTeor(pontos, alvo)!
+    expect(r.teor).toBe(alvo)
+    expect(r.densidadeAparente).toBeCloseTo(a.densidadeAparente + f * (b.densidadeAparente - a.densidadeAparente), 10)
+    expect(r.vazios).toBeCloseTo(a.vazios + f * (b.vazios - a.vazios), 10)
+    expect(r.vcb).toBeCloseTo(a.vcb + f * (b.vcb - a.vcb), 10)
+    expect(r.vam).toBeCloseTo(a.vam + f * (b.vam - a.vam), 10)
+    expect(r.rbv).toBeCloseTo(a.rbv + f * (b.rbv - a.rbv), 10)
+    expect(r.estabilidade).toBeCloseTo(a.estabilidade + f * (b.estabilidade - a.estabilidade), 10)
+    expect(r.fluencia).toBeCloseTo(a.fluencia + f * (b.fluencia - a.fluencia), 10)
+  })
+
+  it('satura no ponto de extremidade quando o teor alvo está fora da faixa', () => {
+    const { pontos } = calcularDosagemMarshall(cps, params)
+    const baixo = interpolarNoTeor(pontos, 3.0)!
+    expect(baixo.teor).toBe(3.0)
+    expect(baixo.vazios).toBeCloseTo(pontos[0].vazios, 10)
+    const alto = interpolarNoTeor(pontos, 6.0)!
+    expect(alto.teor).toBe(6.0)
+    expect(alto.vazios).toBeCloseTo(pontos[1].vazios, 10)
   })
 })
 
