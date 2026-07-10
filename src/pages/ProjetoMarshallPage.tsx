@@ -334,13 +334,24 @@ export default function ProjetoMarshallPage() {
               <tbody>{t.cps.map((c, iCp) => (
                 <tr key={iCp} className="border-b">
                   <td className="p-2 font-semibold">{iCp + 1}</td>
-                  {(['pesoAr', 'pesoImerso', 'riceTeorica', 'leituraEstab', 'fator', 'altura', 'fluencia'] as const).map(campo => (
-                    <td key={campo}><input className="border rounded p-1 w-24" type="number" step="any" value={c[campo]} disabled={!podeEditar}
-                      onChange={e => alterarCp(iTeor, iCp, campo, e.target.value)} /></td>
-                  ))}
+                  {(['pesoAr', 'pesoImerso', 'riceTeorica', 'leituraEstab', 'fator', 'altura', 'fluencia'] as const).map(campo => {
+                    // Fator de correção plausível fica na faixa da tabela DER (0,76–1,46); valor muito
+                    // fora disso é quase sempre outro dado digitado no campo errado (ex.: % de vazios).
+                    const fatorSuspeito = campo === 'fator' && c.fator !== '' && (n(c.fator) < 0.5 || n(c.fator) > 2)
+                    return (
+                      <td key={campo}><input
+                        className={`border rounded p-1 w-24 ${fatorSuspeito ? 'border-red-500 bg-red-50 text-red-700' : ''}`}
+                        title={fatorSuspeito ? 'Fator fora da faixa da tabela (0,76–1,46). Deixe vazio para usar a tabela pelo volume.' : undefined}
+                        type="number" step="any" value={c[campo]} disabled={!podeEditar}
+                        onChange={e => alterarCp(iTeor, iCp, campo, e.target.value)} /></td>
+                    )
+                  })}
                 </tr>
               ))}</tbody>
             </table>
+            {t.cps.some(c => c.fator !== '' && (n(c.fator) < 0.5 || n(c.fator) > 2)) && (
+              <p className="text-red-600 text-sm">Fator de correção fora da faixa da tabela DER (0,76–1,46) — confira se não foi digitado outro dado no campo. Deixe o fator vazio para o sistema buscar na tabela pelo volume do CP.</p>
+            )}
           </div>
         ))}
       </section>
