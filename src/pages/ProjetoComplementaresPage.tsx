@@ -52,7 +52,7 @@ export default function ProjetoComplementaresPage() {
 
   // Prefill do formulário a partir dos dados já salvos (modo edição)
   useEffect(() => {
-    if (existente === undefined || carregado) return
+    if (existente === undefined || dosagem === undefined || carregado) return
     if (existente) {
       const determinacoes = existente.ea_determinacoes ?? []
       setDets(determinacoes.length
@@ -62,8 +62,23 @@ export default function ProjetoComplementaresPage() {
       setAdesividadeObs(existente.adesividade_obs ?? '')
       setDurabilidade(existente.durabilidade_sulfato !== null && existente.durabilidade_sulfato !== undefined ? String(existente.durabilidade_sulfato) : '')
     }
+    // Prefill adicional a partir de dosagens.parametros_projeto: cobre o caso em que o
+    // projeto já tem adesividade/durabilidade lançadas na página de Projetos mas ainda
+    // não existe registro em projeto_complementares (ou o registro não tem esses campos).
+    // Equivalente de areia NUNCA é reconstruído aqui — determinações só vêm de projeto_complementares.
+    const parametros = dosagem?.parametros_projeto
+    if (parametros) {
+      if (!existente?.adesividade) {
+        const pref = parametros.adesividade
+        if (typeof pref === 'string' && pref) setAdesividade(pref)
+      }
+      if (existente?.durabilidade_sulfato === null || existente?.durabilidade_sulfato === undefined) {
+        const pref = parametros.durabilidade_sulfato
+        if (typeof pref === 'number' && Number.isFinite(pref)) setDurabilidade(String(pref))
+      }
+    }
     setCarregado(true)
-  }, [existente, carregado])
+  }, [existente, dosagem, carregado])
 
   function alterarDet(i: number, campo: keyof DetEAForm, valor: string) {
     setDets(dets.map((d, idx) => (idx === i ? { ...d, [campo]: valor } : d)))
@@ -119,10 +134,15 @@ export default function ProjetoComplementaresPage() {
       // Reflete os resultados em dosagens.parametros_projeto para que o resumo/semáforo do
       // projeto enxergue equivalente de areia, durabilidade ao sulfato e adesividade.
       const { data: dosagemAtual, error: errDosagem } = await supabase.from('dosagens').select('parametros_projeto').eq('id', dosagemId).single()
-      if (errDosagem) throw new Error('Falha ao ler parâmetros do projeto: ' + errDosagem.message)
+      if (errDosagem) throw new Error('Ensaios salvos, mas houve falha ao atualizar as características do projeto — tente salvar novamente.')
       const parametros: Record<string, unknown> = { ...((dosagemAtual as { parametros_projeto: Record<string, unknown> | null }).parametros_projeto ?? {}) }
+      // equivalente_areia: só é escrito quando há ao menos uma determinação válida nesta página.
+      // Na ausência de determinações, o campo é deixado como está — pode ter sido lançado
+      // manualmente na página de Projetos, e a mera ausência de ensaios aqui não deve apagá-lo.
       if (eaResultado !== null) parametros.equivalente_areia = eaResultado
-      else delete parametros.equivalente_areia
+      // durabilidade_sulfato e adesividade agora são pré-preenchidos a partir de parametros_projeto
+      // (ver efeito de carregamento acima), então um campo vazio aqui reflete uma limpeza explícita
+      // do usuário, e é seguro remover a chave nesse caso.
       if (durabilidade !== '') parametros.durabilidade_sulfato = Number(durabilidade)
       else delete parametros.durabilidade_sulfato
       if (adesividade) parametros.adesividade = adesividade
@@ -131,7 +151,7 @@ export default function ProjetoComplementaresPage() {
       const { error: errUpdate } = await supabase.from('dosagens')
         .update({ parametros_projeto: Object.keys(parametros).length ? parametros : null })
         .eq('id', dosagemId)
-      if (errUpdate) throw new Error('Falha ao atualizar parâmetros do projeto: ' + errUpdate.message)
+      if (errUpdate) throw new Error('Ensaios salvos, mas houve falha ao atualizar as características do projeto — tente salvar novamente.')
     },
     onSuccess: () => setErro(''),
     onError: (e: Error) => setErro(e.message),
