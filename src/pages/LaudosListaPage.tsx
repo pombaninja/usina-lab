@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { useAuth, podeNoModulo } from '../lib/auth'
 
 interface LaudoLinha {
   id: string
@@ -13,6 +14,10 @@ interface LaudoLinha {
 }
 
 export default function LaudosListaPage() {
+  const qc = useQueryClient()
+  const { perfis } = useAuth()
+  const podeExcluir = podeNoModulo(perfis, 'ensaios_usina', 'avaliador')
+
   const { data: laudos } = useQuery({
     queryKey: ['laudos'],
     queryFn: async () => {
@@ -22,6 +27,21 @@ export default function LaudosListaPage() {
       return (result.data ?? []) as unknown as LaudoLinha[]
     },
   })
+
+  const excluirLaudo = useMutation({
+    mutationFn: async (laudoId: string) => {
+      const { error } = await supabase.rpc('excluir_laudo', { p_laudo: laudoId })
+      if (error) throw error
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['laudos'] }) },
+    onError: (e: Error) => window.alert(e.message),
+  })
+
+  function confirmarExclusao(id: string) {
+    if (window.confirm('Excluir este laudo? Esta ação é irreversível.')) {
+      excluirLaudo.mutate(id)
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -36,6 +56,10 @@ export default function LaudosListaPage() {
             <td className="p-3 flex gap-3">
               <Link className="text-blue-700" to={`/ensaios/${l.ensaio_id}`}>Ensaio</Link>
               {l.status === 'emitido' && <Link className="text-blue-700" to={`/laudos/${l.id}/imprimir`}>PDF</Link>}
+              {podeExcluir && l.status !== 'emitido' && (
+                <button className="text-red-600 disabled:opacity-50" disabled={excluirLaudo.isPending}
+                  onClick={() => confirmarExclusao(l.id)}>Excluir</button>
+              )}
             </td>
           </tr>
         ))}</tbody>
