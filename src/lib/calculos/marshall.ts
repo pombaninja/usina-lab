@@ -90,26 +90,32 @@ const TABELA_CORRECAO_MARSHALL: Array<[number, number, number]> = [
   [7.62, 617.8, 0.76],
 ]
 
-function fatorPorColunaMaisProxima(valor: number, coluna: 0 | 1): number {
-  let melhor = TABELA_CORRECAO_MARSHALL[0]
-  let menorDist = Math.abs(melhor[coluna] - valor)
-  for (const linha of TABELA_CORRECAO_MARSHALL) {
-    const dist = Math.abs(linha[coluna] - valor)
-    if (dist < menorDist) { melhor = linha; menorDist = dist }
+// Lookup por FAIXA, igual ao PROCV aproximado da planilha DER: usa o fator da
+// linha com o MAIOR breakpoint ≤ valor. Abaixo da primeira linha satura no
+// primeiro fator (1,46); acima da última, no último (0,76). NÃO usa "linha mais
+// próxima": ex. volume 486,33 → fator 1,11 (faixa 484,0–486,4), mesmo estando a
+// só 0,07 da linha 486,4 (fator 1,10) — confere com a planilha do laboratório.
+function fatorPorFaixa(valor: number, coluna: 0 | 1): number {
+  // Não assume a tabela ordenada: ordena pela coluna relevante antes do floor.
+  const linhas = [...TABELA_CORRECAO_MARSHALL].sort((a, b) => a[coluna] - b[coluna])
+  let fator = linhas[0][2]
+  for (const linha of linhas) {
+    if (linha[coluna] <= valor) fator = linha[2]
+    else break
   }
-  return melhor[2]
+  return fator
 }
 
-// Fator de correção pela espessura (cm) do CP — usa a linha da tabela DER cuja
-// espessura está mais próxima da informada (tabela fina; sem lançar erro, satura nas pontas).
+// Fator de correção pela espessura (cm) do CP — faixa da tabela DER cujo
+// breakpoint de espessura é o maior ≤ informado (satura nas pontas, sem erro).
 export function fatorCorrecaoPorEspessura(alturaCm: number): number {
-  return fatorPorColunaMaisProxima(alturaCm, 0)
+  return fatorPorFaixa(alturaCm, 0)
 }
 
-// Fator de correção pelo volume (cm³) do CP — usa a linha da tabela DER cujo
-// volume está mais próximo do informado (tabela fina; sem lançar erro, satura nas pontas).
+// Fator de correção pelo volume (cm³) do CP — faixa da tabela DER cujo
+// breakpoint de volume é o maior ≤ informado (satura nas pontas, sem erro).
 export function fatorCorrecaoPorVolume(volumeCm3: number): number {
-  return fatorPorColunaMaisProxima(volumeCm3, 1)
+  return fatorPorFaixa(volumeCm3, 1)
 }
 
 function media(xs: number[]): number { return xs.reduce((a, b) => a + b, 0) / xs.length }
@@ -124,7 +130,9 @@ export function calcularMarshall(cps: MarshallCpInput[], p: MarshallParams) {
     const vcb = (densidadeAparente * p.teorLigante) / p.densidadeLigante
     const vam = vazios + vcb
     const rbv = (vcb * 100) / vam
-    const fator = cp.fatorCorrecao ?? (cp.alturaCm != null ? fatorCorrecaoPorEspessura(cp.alturaCm) : fatorCorrecaoPorVolume(volume))
+    // Fator automático segue o VOLUME do CP (pesoAr − pesoImerso), como na planilha;
+    // altura permanece campo informativo. Fator manual informado sempre prevalece.
+    const fator = cp.fatorCorrecao ?? fatorCorrecaoPorVolume(volume)
     const estabilidadeCorrigida = cp.leituraEstabilidade * p.constantePrensa * fator
     const fluenciaMm = cp.leituraFluenciaMm * (p.correcaoFluencia ?? 1)
     const fluenciaPol = fluenciaMm * (1 / 32) * 100

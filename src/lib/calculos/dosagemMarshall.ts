@@ -1,4 +1,4 @@
-import { fatorCorrecaoPorEspessura, fatorCorrecaoPorVolume } from './marshall'
+import { fatorCorrecaoPorVolume } from './marshall'
 
 export interface CpDosagem {
   teor: number; cp: number; pesoAr: number; pesoImerso: number; riceTeorica: number
@@ -84,7 +84,9 @@ export function calcularDosagemMarshall(
       const vcb = (densidadeAparente * teor) / params.densidadeRealCap
       const vam = vazios + vcb
       const rbv = (vcb * 100) / vam
-      const fator = cp.fatorCorrecao ?? (cp.alturaCm != null ? fatorCorrecaoPorEspessura(cp.alturaCm) : fatorCorrecaoPorVolume(volume))
+      // Fator automático segue o VOLUME do CP (planilha usa PROCV por faixa de volume);
+      // altura permanece campo informativo. Fator manual informado sempre prevalece.
+      const fator = cp.fatorCorrecao ?? fatorCorrecaoPorVolume(volume)
       const leitura = cp.leituraEstabilidade ?? 0
       const calcul = leitura * params.constantePrensa
       const corrig = calcul * fator // = estabilidadeCorrigida

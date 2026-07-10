@@ -34,7 +34,7 @@ describe('marshall - FX III Olimpia (golden)', () => {
   })
 })
 
-describe('fatorCorrecaoPorVolume (tabela DER-SP / DNER-ME 043)', () => {
+describe('fatorCorrecaoPorVolume (tabela DER-SP / DNER-ME 043, lookup por faixa)', () => {
   it('volume 514,8 cm³ (linha exata) → fator 1,0', () => {
     expect(fatorCorrecaoPorVolume(514.8)).toBe(1)
   })
@@ -44,12 +44,26 @@ describe('fatorCorrecaoPorVolume (tabela DER-SP / DNER-ME 043)', () => {
   it('volume 617,8 cm³ (extremo superior da tabela) → fator 0,76', () => {
     expect(fatorCorrecaoPorVolume(617.8)).toBe(0.76)
   })
-  it('volume 500 cm³ (sem linha exata) → usa o volume mais próximo (501,6 → fator 1,04)', () => {
-    expect(fatorCorrecaoPorVolume(500)).toBe(1.04)
+  it('volume 500 cm³ (sem linha exata) → faixa do maior breakpoint ≤ 500 (497,8 → fator 1,05)', () => {
+    // Antes: 1,04 pela linha "mais próxima" (501,6). A planilha usa PROCV
+    // aproximado (floor): 497,8 ≤ 500 < 501,6 → fator 1,05.
+    expect(fatorCorrecaoPorVolume(500)).toBe(1.05)
   })
   it('volume fora da tabela não lança erro — satura na ponta mais próxima', () => {
     expect(fatorCorrecaoPorVolume(400)).toBe(1.46)
     expect(fatorCorrecaoPorVolume(700)).toBe(0.76)
+  })
+  it('linha real da planilha (teor 4,0%): faixa por volume, não linha mais próxima', () => {
+    // Golden da planilha do laboratório (teor 4,0%):
+    //   volume 488,20 → fator 1,10 (nearest daria 1,09 pela linha 488,9 — ERRADO)
+    //   volume 487,00 → fator 1,10
+    //   volume 486,33 → fator 1,11 (nearest daria 1,10 pela linha 486,4, a só 0,07 — ERRADO)
+    expect(fatorCorrecaoPorVolume(488.20)).toBe(1.10)
+    expect(fatorCorrecaoPorVolume(487.00)).toBe(1.10)
+    expect(fatorCorrecaoPorVolume(486.33)).toBe(1.11)
+  })
+  it('exatamente sobre um breakpoint → fator da própria linha (486,4 → 1,10)', () => {
+    expect(fatorCorrecaoPorVolume(486.4)).toBe(1.10)
   })
 })
 
