@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Legend, Tooltip } from 'recharts'
@@ -130,14 +130,20 @@ export default function ProjetoMarshallPage() {
   }, [dosagem])
 
   // Puxa a Rice teórica do ensaio RICE-TEOR para os CPs de cada teor casado, SEM sobrescrever
-  // valores digitados à mão: só preenche campos riceTeorica vazios. Roda após o prefill inicial
-  // (carregado) e só chama setState quando algo muda de fato — evita laço infinito.
+  // valores digitados à mão: só preenche campos riceTeorica vazios. O preenchimento é feito
+  // UMA ÚNICA VEZ por teor (rastreado em riceAplicadaRef) — assim, se o usuário apagar a Rice
+  // puxada, ela NÃO volta sozinha a cada tecla. Um teor novo (ainda não aplicado) que casa com
+  // o ensaio é puxado na hora. Só chama setState quando algo muda de fato — evita laço infinito.
+  const riceAplicadaRef = useRef<Set<string>>(new Set())
   useEffect(() => {
     if (!carregado || riceTeorPorTeor.size === 0) return
     let mudou = false
     const novos = teores.map(t => {
       const teorNum = n(t.teor)
-      const dmt = Number.isFinite(teorNum) ? riceTeorPorTeor.get(teorNum) : undefined
+      if (!Number.isFinite(teorNum)) return t
+      const chave = String(teorNum)
+      if (riceAplicadaRef.current.has(chave)) return t
+      const dmt = riceTeorPorTeor.get(teorNum)
       if (dmt == null) return t
       const dmtStr = String(dmt)
       let blocoMudou = false
@@ -145,6 +151,7 @@ export default function ProjetoMarshallPage() {
         if (c.riceTeorica === '') { blocoMudou = true; return { ...c, riceTeorica: dmtStr } }
         return c
       }) as [CpForm, CpForm, CpForm]
+      riceAplicadaRef.current.add(chave)
       if (!blocoMudou) return t
       mudou = true
       return { ...t, cps }
