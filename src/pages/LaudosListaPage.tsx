@@ -37,9 +37,12 @@ export default function LaudosListaPage() {
     onError: (e: Error) => window.alert(e.message),
   })
 
-  function confirmarExclusao(id: string) {
-    if (window.confirm('Excluir este laudo? Esta ação é irreversível.')) {
-      excluirLaudo.mutate(id)
+  function confirmarExclusao(l: LaudoLinha) {
+    const msg = l.status === 'emitido'
+      ? `Excluir o laudo EMITIDO ${l.numero}? Esta ação é IRREVERSÍVEL e remove um documento oficial numerado.`
+      : 'Excluir este laudo? Esta ação é irreversível.'
+    if (window.confirm(msg)) {
+      excluirLaudo.mutate(l.id)
     }
   }
 
@@ -56,9 +59,9 @@ export default function LaudosListaPage() {
             <td className="p-3 flex gap-3">
               <Link className="text-blue-700" to={`/ensaios/${l.ensaio_id}`}>Ensaio</Link>
               {l.status === 'emitido' && <Link className="text-blue-700" to={`/laudos/${l.id}/imprimir`}>PDF</Link>}
-              {podeExcluir && l.status !== 'emitido' && (
+              {podeExcluir && (
                 <button className="text-red-600 disabled:opacity-50" disabled={excluirLaudo.isPending}
-                  onClick={() => confirmarExclusao(l.id)}>Excluir</button>
+                  onClick={() => confirmarExclusao(l)}>Excluir</button>
               )}
             </td>
           </tr>
