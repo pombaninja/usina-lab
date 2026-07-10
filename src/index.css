@@ -5,3 +5,7 @@
   nav, button { display: none !important; }
   body { background: white; }
 }
+
+/* Quebras de página para documentos impressos (Documento do Projeto, laudos) */
+.doc-pagina { break-before: page; }
+.doc-evitar-quebra { break-inside: avoid; }
