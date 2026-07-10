@@ -298,6 +298,23 @@ export default function DosagensPage() {
     onError: (e: Error) => setErro(e.message),
   })
 
+  // Exclui a família inteira do projeto (todas as revisões + dados filhos).
+  // Bloqueado no backend se houver ensaio/laudo vinculado a qualquer revisão da família.
+  const excluirProjeto = useMutation({
+    mutationFn: async (dosagemId: string) => {
+      const { error } = await supabase.rpc('excluir_projeto', { p_dosagem: dosagemId })
+      if (error) throw error
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['dosagens'] }); limparForm() },
+    onError: (e: Error) => setErro(e.message),
+  })
+
+  function confirmarExclusao(d: Dosagem) {
+    if (window.confirm(`Excluir o projeto "${String(d.nome)}" e TODAS as suas revisões e dados de dosagem? Esta ação não pode ser desfeita.`)) {
+      excluirProjeto.mutate(d.id)
+    }
+  }
+
   // Cria uma nova revisão (snapshot do projeto atual, revisao+1) e já abre a
   // revisão nova no formulário de edição.
   const criarRevisao = useMutation({
@@ -495,8 +512,9 @@ export default function DosagensPage() {
                 <td className="p-3 space-x-2 whitespace-nowrap">
                   {podeEditar && (
                     <>
-                      <button className="text-blue-700" disabled={salvar.isPending || criarRevisao.isPending} onClick={() => abrirEdicao(d)}>Editar</button>
-                      <button className="text-emerald-700" disabled={salvar.isPending || criarRevisao.isPending} onClick={() => criarRevisao.mutate(d.id)}>Criar revisão</button>
+                      <button className="text-blue-700" disabled={salvar.isPending || criarRevisao.isPending || excluirProjeto.isPending} onClick={() => abrirEdicao(d)}>Editar</button>
+                      <button className="text-emerald-700" disabled={salvar.isPending || criarRevisao.isPending || excluirProjeto.isPending} onClick={() => criarRevisao.mutate(d.id)}>Criar revisão</button>
+                      <button className="text-red-600" disabled={salvar.isPending || criarRevisao.isPending || excluirProjeto.isPending} onClick={() => confirmarExclusao(d)}>Excluir</button>
                     </>
                   )}
                   {(d.tipo === 'cbuq' || d.tipo === 'cbuqf') && (
