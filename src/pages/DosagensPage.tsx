@@ -520,6 +520,7 @@ export default function DosagensPage() {
                   {(d.tipo === 'cbuq' || d.tipo === 'cbuqf') && (
                     <>
                       <Link className="text-purple-700" to={`/projetos/${d.id}/marshall`}>Dosagem Marshall</Link>
+                      <Link className="text-lime-700" to={`/projetos/${d.id}/rice-teor`}>RICE-TEOR</Link>
                       <Link className="text-indigo-700" to={`/projetos/${d.id}/agregados`}>Agregados</Link>
                       <Link className="text-teal-700" to={`/projetos/${d.id}/moldagem`}>Composição/Moldagem</Link>
                       <Link className="text-fuchsia-700" to={`/projetos/${d.id}/densidades`}>Densidades</Link>

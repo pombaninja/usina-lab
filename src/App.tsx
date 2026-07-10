@@ -17,6 +17,7 @@ import InsumosHistoricoPage from './pages/insumos/InsumosHistoricoPage'
 import DosagensPage from './pages/DosagensPage'
 import ProjetoMarshallPage from './pages/ProjetoMarshallPage'
 import ProjetoAgregadosPage from './pages/ProjetoAgregadosPage'
+import ProjetoRiceTeorPage from './pages/ProjetoRiceTeorPage'
 import ProjetoMoldagemPage from './pages/ProjetoMoldagemPage'
 import ProjetoDensidadesPage from './pages/ProjetoDensidadesPage'
 import ProjetoComplementaresPage from './pages/ProjetoComplementaresPage'
@@ -52,6 +53,7 @@ export default function App() {
               <Route path="/insumos/historico" element={<InsumosHistoricoPage />} />
               <Route path="/dosagens" element={<DosagensPage />} />
               <Route path="/projetos/:id/marshall" element={<ProjetoMarshallPage />} />
+              <Route path="/projetos/:id/rice-teor" element={<ProjetoRiceTeorPage />} />
               <Route path="/projetos/:id/agregados" element={<ProjetoAgregadosPage />} />
               <Route path="/projetos/:id/moldagem" element={<ProjetoMoldagemPage />} />
               <Route path="/projetos/:id/densidades" element={<ProjetoDensidadesPage />} />

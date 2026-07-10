@@ -17,6 +17,13 @@ describe('densidade máxima teórica Rice (golden)', () => {
   })
 })
 
+describe('RICE-TEOR — DMT por teor (golden, reutiliza gmmRice)', () => {
+  it('leitura RICE-TEOR realista: A=1211,5 / B=7623,4 / C=8365,1, fator 1 → 2,5788', () => {
+    // DMT = A/(A+B−C)·fator = 1211,5/(1211,5+7623,4−8365,1) = 1211,5/469,8 = 2,578757…
+    expect(gmmRice(1211.5, 7623.4, 8365.1, 1)).toBeCloseTo(2.5788, 3)
+  })
+})
+
 describe('validação de entradas', () => {
   it('teorRotarex rejeita pesos inválidos', () => {
     expect(() => teorRotarex(0, 10)).toThrow(/inválidos/)
