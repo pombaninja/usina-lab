@@ -506,6 +506,7 @@ export default function DosagensPage() {
                       <Link className="text-teal-700" to={`/projetos/${d.id}/moldagem`}>Composição/Moldagem</Link>
                       <Link className="text-fuchsia-700" to={`/projetos/${d.id}/densidades`}>Densidades</Link>
                       <Link className="text-orange-700" to={`/projetos/${d.id}/complementares`}>Complementares</Link>
+                      <Link className="text-rose-700" to={`/projetos/${d.id}/indice-forma`}>Índice de forma</Link>
                     </>
                   )}
                 </td>
