@@ -5,6 +5,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Legend, Tooltip } from 'r
 import { supabase } from '../lib/supabase'
 import { useAuth, podeNoModulo } from '../lib/auth'
 import { calcularDosagemMarshall, type CpDosagem } from '../lib/calculos/dosagemMarshall'
+import { gmmRice } from '../lib/calculos/teorBetume'
 import { fmt } from '../lib/formato'
 
 interface CpForm { pesoAr: string; pesoImerso: string; riceTeorica: string; leituraEstab: string; fator: string; altura: string; fluencia: string }
@@ -57,6 +58,33 @@ export default function ProjetoMarshallPage() {
     },
   })
 
+  // Ensaio RICE-TEOR: DMT (Rice teórica) por teor de CAP. Uma Rice por teor, puxada
+  // para os 3 CPs daquele teor na dosagem Marshall.
+  const { data: riceTeor } = useQuery({
+    queryKey: ['marshall-rice-teor', dosagemId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('projeto_rice_teor')
+        .select('teor, peso_amostra, frasco_agua, frasco_amostra_agua, fator_temp').eq('dosagem_id', dosagemId)
+      if (error) throw error
+      return (data ?? []) as {
+        teor: number; peso_amostra: number | null; frasco_agua: number | null
+        frasco_amostra_agua: number | null; fator_temp: number | null
+      }[]
+    },
+  })
+
+  // Mapa teor(number) → DMT(number). Ignora linhas com massas incompletas ou leituras inconsistentes.
+  const riceTeorPorTeor = useMemo(() => {
+    const m = new Map<number, number>()
+    for (const r of riceTeor ?? []) {
+      if (r.peso_amostra == null || r.frasco_agua == null || r.frasco_amostra_agua == null) continue
+      try {
+        m.set(Number(r.teor), gmmRice(r.peso_amostra, r.frasco_agua, r.frasco_amostra_agua, r.fator_temp ?? 1))
+      } catch { /* leituras Rice inconsistentes: ignora este teor */ }
+    }
+    return m
+  }, [riceTeor])
+
   // Prefill do formulário a partir dos dados já salvos (modo edição)
   useEffect(() => {
     if (!existente || carregado) return
@@ -100,6 +128,30 @@ export default function ProjetoMarshallPage() {
     if (dosagem?.teor_otimo != null && teorOtimoInput === '') setTeorOtimoInput(String(dosagem.teor_otimo))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dosagem])
+
+  // Puxa a Rice teórica do ensaio RICE-TEOR para os CPs de cada teor casado, SEM sobrescrever
+  // valores digitados à mão: só preenche campos riceTeorica vazios. Roda após o prefill inicial
+  // (carregado) e só chama setState quando algo muda de fato — evita laço infinito.
+  useEffect(() => {
+    if (!carregado || riceTeorPorTeor.size === 0) return
+    let mudou = false
+    const novos = teores.map(t => {
+      const teorNum = n(t.teor)
+      const dmt = Number.isFinite(teorNum) ? riceTeorPorTeor.get(teorNum) : undefined
+      if (dmt == null) return t
+      const dmtStr = String(dmt)
+      let blocoMudou = false
+      const cps = t.cps.map(c => {
+        if (c.riceTeorica === '') { blocoMudou = true; return { ...c, riceTeorica: dmtStr } }
+        return c
+      }) as [CpForm, CpForm, CpForm]
+      if (!blocoMudou) return t
+      mudou = true
+      return { ...t, cps }
+    })
+    if (mudou) setTeores(novos)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [carregado, riceTeorPorTeor, teores])
 
   function alterarTeor(i: number, valor: string) {
     setTeores(teores.map((t, idx) => (idx === i ? { ...t, teor: valor } : t)))
@@ -260,6 +312,13 @@ export default function ProjetoMarshallPage() {
                 <button type="button" className="text-red-600 text-sm" onClick={() => removerTeor(iTeor)}>Remover teor</button>
               )}
             </div>
+            {(() => {
+              const teorNum = n(t.teor)
+              const dmt = Number.isFinite(teorNum) ? riceTeorPorTeor.get(teorNum) : undefined
+              return dmt != null
+                ? <p className="text-xs text-lime-700">Rice (DMT) do RICE-TEOR: {fmt(dmt, 3)} — preenchida automaticamente nos 3 CPs (editável).</p>
+                : null
+            })()}
             <table className="w-full text-sm">
               <thead><tr className="text-left border-b">
                 <th className="p-2">CP</th><th>Peso ar (g)</th><th>Peso imerso (g)</th><th>Rice teórica</th>
