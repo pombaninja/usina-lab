@@ -11,11 +11,11 @@ import {
 import { fmt } from '../lib/formato'
 
 interface DetForm { pesoTotal: string; retidos: Record<string, string> }
-interface AgregadoForm { id?: string; materialNome: string; origem: string; data: string; pctManual: string; dets: DetForm[] }
+interface AgregadoForm { id?: string; materialNome: string; origem: string; data: string; pctMistura: string; dets: DetForm[] }
 
 const n = (s: string) => (s === '' ? NaN : Number(s))
 const detVazio = (): DetForm => ({ pesoTotal: '', retidos: {} })
-const agregadoVazio = (): AgregadoForm => ({ materialNome: '', origem: '', data: '', pctManual: '', dets: [detVazio()] })
+const agregadoVazio = (): AgregadoForm => ({ materialNome: '', origem: '', data: '', pctMistura: '', dets: [detVazio()] })
 
 export default function ProjetoAgregadosPage() {
   const nav = useNavigate()
@@ -71,7 +71,7 @@ export default function ProjetoAgregadosPage() {
         id: string; material_nome: string; origem: string | null; data: string | null
         peneiras: { peneira: string; aberturaMm: number }[]
         determinacoes: { pesoTotal: number; retidos: Record<string, number> }[]
-        ordem: number
+        ordem: number; pct_na_mistura: number | null
       }[]
     },
   })
@@ -85,7 +85,10 @@ export default function ProjetoAgregadosPage() {
         materialNome: a.material_nome,
         origem: a.origem ?? '',
         data: a.data ?? '',
-        pctManual: '',
+        // % na mistura persistida é a fonte primária; se ausente, tenta a composição pelo nome do material (conveniência).
+        pctMistura: a.pct_na_mistura != null
+          ? String(a.pct_na_mistura)
+          : (() => { const m = (composicao ?? []).find(c => (c.material_nome ?? '').trim().toLowerCase() === a.material_nome.trim().toLowerCase()); return m ? String(m.percentual) : '' })(),
         dets: (a.determinacoes.length ? a.determinacoes : [{ pesoTotal: 0, retidos: {} }]).slice(0, 3).map(d => ({
           pesoTotal: Number.isFinite(d.pesoTotal) ? String(d.pesoTotal) : '',
           retidos: Object.fromEntries(Object.entries(d.retidos ?? {}).map(([k, v]) => [k, String(v)])),
@@ -95,7 +98,7 @@ export default function ProjetoAgregadosPage() {
     setCarregado(true)
   }, [existentes, carregado])
 
-  function alterarAgregado(i: number, campo: 'materialNome' | 'origem' | 'data' | 'pctManual', valor: string) {
+  function alterarAgregado(i: number, campo: 'materialNome' | 'origem' | 'data' | 'pctMistura', valor: string) {
     setAgregados(agregados.map((a, idx) => (idx === i ? { ...a, [campo]: valor } : a)))
   }
   function alterarPesoTotal(iAg: number, iDet: number, valor: string) {
@@ -140,18 +143,11 @@ export default function ProjetoAgregadosPage() {
     })
   }, [agregados, peneiras])
 
-  function materialCombina(materialNome: string): { percentual: number } | undefined {
-    const alvo = materialNome.trim().toLowerCase()
-    return (composicao ?? []).find(c => (c.material_nome ?? '').trim().toLowerCase() === alvo)
-  }
+  // % na mistura vem exclusivamente do campo pctMistura de cada agregado (fonte única, persistida).
   function pctNaMistura(a: AgregadoForm): number | null {
-    const match = materialCombina(a.materialNome)
-    if (match) return match.percentual
-    if (a.pctManual !== '') {
-      const v = n(a.pctManual)
-      return Number.isFinite(v) ? v : null
-    }
-    return null
+    if (a.pctMistura.trim() === '') return null
+    const v = n(a.pctMistura)
+    return Number.isFinite(v) ? v : null
   }
 
   const combinada = useMemo((): { peneira: string; aberturaMm: number; pctPassa: number }[] | null => {
@@ -165,8 +161,18 @@ export default function ProjetoAgregadosPage() {
     })
     if (!entradas.length) return null
     return combinarGranulometrias(entradas)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agregados, resultados, composicao])
+  }, [agregados, resultados])
+
+  // Soma das % informadas nos agregados com resultado válido (para o aviso não-bloqueante de 100%).
+  const somaPct = useMemo(() => {
+    return agregados.reduce((acc, a, i) => {
+      const res = resultados[i]
+      if (!res || !res.ok) return acc
+      const pct = pctNaMistura(a)
+      return pct == null ? acc : acc + pct
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, 0)
+  }, [agregados, resultados])
 
   const salvar = useMutation({
     mutationFn: async () => {
@@ -180,6 +186,7 @@ export default function ProjetoAgregadosPage() {
       type LinhaSalvar = {
         id?: string; dosagem_id: string; material_nome: string; origem: string | null; data: string | null
         peneiras: PeneiraRef[]; determinacoes: { pesoTotal: number; retidos: Record<string, number> }[]; ordem: number
+        pct_na_mistura: number | null
       }
       const linhas: LinhaSalvar[] = preenchidos.map((a, i) => ({
         id: a.id,
@@ -193,6 +200,7 @@ export default function ProjetoAgregadosPage() {
           retidos: Object.fromEntries(Object.entries(d.retidos).filter(([, v]) => v !== '').map(([k, v]) => [k, n(v)])),
         })),
         ordem: i,
+        pct_na_mistura: a.pctMistura.trim() === '' ? null : Number(a.pctMistura),
       }))
 
       const comId = linhas.filter(l => l.id)
@@ -243,11 +251,10 @@ export default function ProjetoAgregadosPage() {
       {agregados.map((a, iAg) => {
         const res = resultados[iAg]
         const dadosGrafico = res?.ok ? res.linhas.map(l => ({ abertura: l.aberturaMm, pctPassa: Number(l.pctPassa.toFixed(2)) })) : []
-        const matchComposicao = materialCombina(a.materialNome)
         return (
           <section key={iAg} className="bg-white p-4 rounded-xl shadow space-y-3">
             <div className="flex items-center justify-between">
-              <div className="grid grid-cols-4 gap-3 flex-1">
+              <div className="grid grid-cols-3 gap-3 flex-1">
                 <label className="text-sm">Material
                   <input className={inp} value={a.materialNome} disabled={!podeEditar}
                     onChange={e => alterarAgregado(iAg, 'materialNome', e.target.value)} /></label>
@@ -257,14 +264,6 @@ export default function ProjetoAgregadosPage() {
                 <label className="text-sm">Data
                   <input className={inp} type="date" value={a.data} disabled={!podeEditar}
                     onChange={e => alterarAgregado(iAg, 'data', e.target.value)} /></label>
-                {matchComposicao ? (
-                  <label className="text-sm">% na mistura (composição)
-                    <input className={inp} value={fmt(matchComposicao.percentual, 2)} disabled readOnly /></label>
-                ) : (
-                  <label className="text-sm">% na mistura (não achou na composição — informe)
-                    <input className={inp} type="number" step="any" value={a.pctManual} disabled={!podeEditar}
-                      onChange={e => alterarAgregado(iAg, 'pctManual', e.target.value)} /></label>
-                )}
               </div>
               {podeEditar && agregados.length > 1 && (
                 <button type="button" className="text-red-600 text-sm ml-3" onClick={() => removerAgregado(iAg)}>Remover agregado</button>
@@ -340,7 +339,32 @@ export default function ProjetoAgregadosPage() {
 
       <section className="bg-white p-4 rounded-xl shadow space-y-4">
         <h2 className="font-semibold text-lg">Granulometria combinada</h2>
-        {!combinada && <p className="text-sm text-slate-500">Preencha ao menos um agregado com % na mistura definida (via composição ou informada manualmente) para ver a combinada.</p>}
+
+        {(() => {
+          const comResultado = agregados.map((a, i) => ({ a, i })).filter(({ i }) => resultados[i]?.ok)
+          if (!comResultado.length) {
+            return <p className="text-sm text-slate-500">Preencha ao menos um agregado com determinação válida para informar a % na mistura e ver a combinada.</p>
+          }
+          const foraFaixa = somaPct < 99.5 || somaPct > 100.5
+          return (
+            <div className="space-y-2">
+              <p className="text-sm text-slate-600">Informe a % de cada agregado na mistura. A curva combinada abaixo é salva junto com a granulometria.</p>
+              <div className="space-y-2">
+                {comResultado.map(({ a, i }) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <span className="text-sm flex-1">{a.materialNome || `Agregado ${i + 1}`}</span>
+                    <input className="border rounded p-2 w-28" type="number" step="any" value={a.pctMistura} disabled={!podeEditar}
+                      onChange={e => alterarAgregado(i, 'pctMistura', e.target.value)} />
+                    <span className="text-sm text-slate-500">%</span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-sm">Soma: <span className="font-semibold">{fmt(somaPct, 2)}%</span></p>
+              {foraFaixa && <p className="text-amber-700 bg-amber-50 p-2 rounded text-sm">As % somam {fmt(somaPct, 2)}% (ideal 100%)</p>}
+            </div>
+          )
+        })()}
+
         {combinada && (
           <>
             <table className="w-full text-sm">
