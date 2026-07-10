@@ -11,6 +11,7 @@ import {
   type PeneiraRef, type DeterminacaoAgregado, type LinhaAgregado,
 } from '../lib/calculos/agregadoGranulometria'
 import { calcularDosagemMarshall, type CpDosagem } from '../lib/calculos/dosagemMarshall'
+import { gmmRice } from '../lib/calculos/teorBetume'
 import { densidadeAgregadoGraudo, densidadeAgregadoMiudo, massaEspecificaRealMedia } from '../lib/calculos/densidades'
 import { equivalenteAreia, type DeterminacaoEA } from '../lib/calculos/equivalenteAreia'
 import { curvaViscosidade, type PontoVisc } from '../lib/calculos/viscosidadeCap'
@@ -33,6 +34,7 @@ interface MarshallCpRow {
   teor: number; cp: number; peso_ar: number | null; peso_imerso: number | null; rice_teorica: number | null
   leitura_estabilidade: number | null; fator_correcao: number | null; altura_cm: number | null; leitura_fluencia: number | null
 }
+interface RiceTeorRow { teor: number; peso_amostra: number | null; frasco_agua: number | null; frasco_amostra_agua: number | null; fator_temp: number | null }
 interface DensidadeRow { tipo: string; material_nome: string | null; entradas: { determinacoes: Record<string, number>[] } }
 interface ComplementaresRow {
   ea_determinacoes: { leitura_areia: number; leitura_argila: number }[] | null; ea_resultado: number | null
@@ -101,7 +103,7 @@ export default function ProjetoDocumentoPage() {
       if (errDos) throw errDos
       const d = dosagem as unknown as DosagemRow
 
-      const [peneirasR, parametrosR, composicaoR, agregadosR, marshallR, marshallCpR, densidadesR, complementaresR, indiceFormaR, viscosidadeR] = await Promise.all([
+      const [peneirasR, parametrosR, composicaoR, agregadosR, marshallR, marshallCpR, riceTeorR, densidadesR, complementaresR, indiceFormaR, viscosidadeR] = await Promise.all([
         supabase.from('especificacao_peneiras').select('peneira, abertura_mm, passante_min, passante_max, tolerancia_trabalho')
           .eq('especificacao_id', d.especificacao_id).order('abertura_mm', { ascending: false }),
         supabase.from('especificacao_parametros').select('parametro, valor_min, valor_max, unidade').eq('especificacao_id', d.especificacao_id),
@@ -110,13 +112,14 @@ export default function ProjetoDocumentoPage() {
         supabase.from('projeto_marshall').select('densidade_real_cap, constante_prensa, correcao_fluencia').eq('dosagem_id', dosagemId).maybeSingle(),
         supabase.from('projeto_marshall_cp').select('teor, cp, peso_ar, peso_imerso, rice_teorica, leitura_estabilidade, fator_correcao, altura_cm, leitura_fluencia')
           .eq('dosagem_id', dosagemId).order('teor').order('cp'),
+        supabase.from('projeto_rice_teor').select('teor, peso_amostra, frasco_agua, frasco_amostra_agua, fator_temp').eq('dosagem_id', dosagemId).order('teor'),
         supabase.from('projeto_densidades').select('tipo, material_nome, entradas').eq('dosagem_id', dosagemId).order('ordem'),
         supabase.from('projeto_complementares').select('ea_determinacoes, ea_resultado, adesividade, adesividade_obs, durabilidade_sulfato').eq('dosagem_id', dosagemId).maybeSingle(),
         supabase.from('projeto_indice_forma').select('material_nome, media_il, pct_lamelar, graos').eq('dosagem_id', dosagemId).maybeSingle(),
         supabase.from('projeto_viscosidade').select('material, pontos, faixas, ponto_fulgor, ponto_amolecimento, penetracao, temp_usinagem_min, temp_usinagem_max, temp_compactacao_min, temp_compactacao_max')
           .eq('dosagem_id', dosagemId).maybeSingle(),
       ])
-      for (const r of [peneirasR, parametrosR, composicaoR, agregadosR, marshallR, marshallCpR, densidadesR, complementaresR, indiceFormaR, viscosidadeR]) {
+      for (const r of [peneirasR, parametrosR, composicaoR, agregadosR, marshallR, marshallCpR, riceTeorR, densidadesR, complementaresR, indiceFormaR, viscosidadeR]) {
         if (r.error) throw r.error
       }
 
@@ -128,6 +131,7 @@ export default function ProjetoDocumentoPage() {
         agregados: (agregadosR.data ?? []) as AgregadoRow[],
         marshall: marshallR.data as MarshallParamsRow | null,
         marshallCps: (marshallCpR.data ?? []) as MarshallCpRow[],
+        riceTeor: (riceTeorR.data ?? []) as RiceTeorRow[],
         densidades: (densidadesR.data ?? []) as DensidadeRow[],
         complementares: complementaresR.data as ComplementaresRow | null,
         indiceForma: indiceFormaR.data as IndiceFormaRow | null,
@@ -184,6 +188,18 @@ export default function ProjetoDocumentoPage() {
   const dadosGraficoMarshall = marshallResultado?.pontos.map(p => ({
     teor: p.teor, Densidade: p.densidadeAparente, Vazios: p.vazios, Estabilidade: p.estabilidade, Fluência: p.fluencia, RBV: p.rbv,
   })) ?? []
+
+  // ===== Ensaio RICE-TEOR — DMT por teor (reaproveita gmmRice) =====
+  const riceTeorRows = useMemo(() => {
+    if (!data?.riceTeor.length) return []
+    return data.riceTeor.map(r => {
+      let dmt: number | null = null
+      if (r.peso_amostra != null && r.frasco_agua != null && r.frasco_amostra_agua != null) {
+        try { dmt = gmmRice(r.peso_amostra, r.frasco_agua, r.frasco_amostra_agua, r.fator_temp ?? 1) } catch { dmt = null }
+      }
+      return { ...r, dmt }
+    })
+  }, [data])
 
   // ===== Densidades (reaproveita densidades.ts) =====
   const densidadesCalc = useMemo(() => {
@@ -443,6 +459,30 @@ export default function ProjetoDocumentoPage() {
               </div>
             ))}
           </div>
+        </section>
+      )}
+
+      {/* ===== 3b. Ensaio RICE-TEOR (DMT por teor) ===== */}
+      {riceTeorRows.length > 0 && (
+        <section className="mb-6 doc-evitar-quebra">
+          <h2 className="text-lg font-bold border-b-2 border-slate-800 mb-3">Ensaio RICE-TEOR — DMT por teor</h2>
+          <table className="w-full border">
+            <thead><tr className="bg-slate-100">
+              <th className="border p-1">Teor (% CAP)</th><th className="border p-1">A — amostra seca (g)</th>
+              <th className="border p-1">B — frasco + água (g)</th><th className="border p-1">C — frasco + água + amostra (g)</th>
+              <th className="border p-1">Fator temp.</th><th className="border p-1">DMT (Rice teórica)</th>
+            </tr></thead>
+            <tbody>{riceTeorRows.map((r, i) => (
+              <tr key={i}>
+                <td className="border p-1 text-center">{fmt(r.teor, 2)}</td>
+                <td className="border p-1 text-center">{r.peso_amostra != null ? fmt(r.peso_amostra, 2) : '—'}</td>
+                <td className="border p-1 text-center">{r.frasco_agua != null ? fmt(r.frasco_agua, 2) : '—'}</td>
+                <td className="border p-1 text-center">{r.frasco_amostra_agua != null ? fmt(r.frasco_amostra_agua, 2) : '—'}</td>
+                <td className="border p-1 text-center">{r.fator_temp != null ? fmt(r.fator_temp, 4) : '1'}</td>
+                <td className="border p-1 text-center font-semibold">{r.dmt != null ? fmt(r.dmt, 3) : '—'}</td>
+              </tr>
+            ))}</tbody>
+          </table>
         </section>
       )}
 
