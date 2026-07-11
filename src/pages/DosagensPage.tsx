@@ -188,6 +188,20 @@ export default function DosagensPage() {
     },
   })
 
+  // Curva combinada dos agregados do projeto em edição (usada no prefill e no
+  // "Carregar peneiras da especificação", para preencher o % passando vazio).
+  const combinadaEdicao = useMemo(() => {
+    if (!agregadosEdicao) return null
+    const entradas: { pctNaMistura: number; linhas: LinhaAgregado[] }[] = []
+    for (const a of agregadosEdicao) {
+      if (a.pct_na_mistura == null) continue
+      try {
+        entradas.push({ pctNaMistura: a.pct_na_mistura, linhas: calcularGranulometriaAgregado(a.peneiras ?? [], a.determinacoes ?? []) })
+      } catch { /* determinações inválidas: agregado não participa da combinada */ }
+    }
+    return entradas.length ? combinarGranulometrias(entradas) : null
+  }, [agregadosEdicao])
+
   // Preenche automaticamente SOMENTE campos vazios com os resultados dos ensaios
   // interpolados no teor ótimo (mesmo padrão do puxa-Rice da tela Marshall).
   // Espera TODAS as consultas-filhas resolverem antes de rodar o guard.
@@ -254,15 +268,8 @@ export default function DosagensPage() {
       }
     }
 
-    // --- Granulometria dos agregados: curva combinada ---
-    const entradas: { pctNaMistura: number; linhas: LinhaAgregado[] }[] = []
-    for (const a of agregadosEdicao) {
-      if (a.pct_na_mistura == null) continue
-      try {
-        entradas.push({ pctNaMistura: a.pct_na_mistura, linhas: calcularGranulometriaAgregado(a.peneiras ?? [], a.determinacoes ?? []) })
-      } catch { /* determinações inválidas: agregado não participa da combinada */ }
-    }
-    const combinada = entradas.length ? combinarGranulometrias(entradas) : null
+    // --- Granulometria dos agregados: curva combinada (memo compartilhado) ---
+    const combinada = combinadaEdicao
 
     let fillerLigante: number | null = null
     if (combinada && temTeor) {
@@ -332,7 +339,7 @@ export default function DosagensPage() {
 
     if (algumPreenchido) setPrefillAplicado(true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editando, marshallEdicao, riceEdicao, agregadosEdicao, form, parametros, curvaLinhas])
+  }, [editando, marshallEdicao, riceEdicao, agregadosEdicao, combinadaEdicao, form, parametros, curvaLinhas])
 
   // A lista principal mostra só a revisão mais recente de cada família de projeto
   // (família = coalesce(projeto_pai_id, id)); o histórico completo fica disponível
@@ -415,13 +422,21 @@ export default function DosagensPage() {
     if (!especId) return
     const { data, error } = await supabase.from('especificacao_peneiras').select('*').eq('especificacao_id', especId).order('abertura_mm', { ascending: false })
     if (error) { setErro(error.message); return }
+    // % passando vazio é preenchido com a granulometria combinada dos agregados do projeto
+    // (mesma fonte do prefill automático); valor já existente na linha nunca é sobrescrito.
+    const passaCombinada = new Map((combinadaEdicao ?? []).map(l => [normalizarPeneira(l.peneira), l.pctPassa]))
     setCurvaLinhas(prev => {
       const existentes = new Map(prev.map(l => [normalizarPeneira(l.peneira), l.passante]))
-      return (data ?? []).map((p: { peneira: string; tolerancia_trabalho: number | null }) => ({
-        peneira: p.peneira,
-        passante: existentes.get(normalizarPeneira(p.peneira)) ?? '',
-        tolerancia: p.tolerancia_trabalho != null ? String(p.tolerancia_trabalho) : '',
-      }))
+      return (data ?? []).map((p: { peneira: string; tolerancia_trabalho: number | null }) => {
+        const chave = normalizarPeneira(p.peneira)
+        const atual = existentes.get(chave) ?? ''
+        const daCombinada = passaCombinada.get(chave)
+        return {
+          peneira: p.peneira,
+          passante: atual.trim() !== '' ? atual : daCombinada != null && Number.isFinite(daCombinada) ? String(arred(daCombinada, 1)) : '',
+          tolerancia: p.tolerancia_trabalho != null ? String(p.tolerancia_trabalho) : '',
+        }
+      })
     })
   }
 
