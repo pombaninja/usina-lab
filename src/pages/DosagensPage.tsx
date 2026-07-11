@@ -7,6 +7,7 @@ import { normalizarPeneira } from '../lib/calculos/granulometria'
 import { calcularDosagemMarshall, interpolarNoTeor, interpolarValorNoTeor, type CpDosagem, type InterpolacaoTeor } from '../lib/calculos/dosagemMarshall'
 import { calcularGranulometriaAgregado, combinarGranulometrias, type LinhaAgregado } from '../lib/calculos/agregadoGranulometria'
 import { gmmRice } from '../lib/calculos/teorBetume'
+import { calcularRtd } from '../lib/calculos/rtd'
 
 interface LinhaCurva { peneira: string; passante: string; tolerancia: string }
 interface LinhaComposicao { origem: string; material: string; local: string; pct: string; densidade: string }
@@ -155,6 +156,17 @@ export default function DosagensPage() {
     },
   })
 
+  const { data: rtdEdicao } = useQuery({
+    queryKey: ['dosagem-edicao-rtd', edicaoCbuqId],
+    enabled: !!edicaoCbuqId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from('projeto_rtd_cp')
+        .select('cp, leitura, diametro_cm, altura_cm').eq('dosagem_id', edicaoCbuqId!)
+      if (error) throw error
+      return (data ?? []) as { cp: number; leitura: number | null; diametro_cm: number | null; altura_cm: number | null }[]
+    },
+  })
+
   const { data: agregadosEdicao } = useQuery({
     queryKey: ['dosagem-edicao-agregados', edicaoCbuqId],
     enabled: !!edicaoCbuqId,
@@ -192,7 +204,7 @@ export default function DosagensPage() {
   useEffect(() => {
     if (!editando || editando.tipo !== 'cbuq') return
     if (prefillRef.current === editando.id) return
-    if (marshallEdicao === undefined || riceEdicao === undefined || agregadosEdicao === undefined) return
+    if (marshallEdicao === undefined || riceEdicao === undefined || rtdEdicao === undefined || agregadosEdicao === undefined) return
     prefillRef.current = editando.id
 
     const teorOtimoRaw = form.teor_otimo ?? editando.teor_otimo
@@ -261,6 +273,19 @@ export default function DosagensPage() {
       if (p200) fillerLigante = p200.pctPassa / teorOtimo
     }
 
+    // --- Ruptura Diametral (RTD) do projeto: média dos CPs (reutiliza calcularRtd,
+    // constante da prensa vinda da Dosagem Marshall) ---
+    let rtdMedia: number | null = null
+    const constPrensa = marshallEdicao.pm?.constante_prensa
+    if (constPrensa != null && rtdEdicao.length) {
+      const cpsRtd = rtdEdicao
+        .filter(r => r.leitura != null && r.diametro_cm != null && r.altura_cm != null)
+        .map(r => ({ leitura: r.leitura!, constantePrensa: constPrensa, diametroCm: r.diametro_cm!, alturaCm: r.altura_cm! }))
+      if (cpsRtd.length) {
+        try { rtdMedia = calcularRtd(cpsRtd).media } catch { /* CPs inconsistentes: sem prefill RTD */ }
+      }
+    }
+
     let algumPreenchido = false
 
     // 1) Características (parametros_projeto) — só chaves vazias
@@ -276,6 +301,7 @@ export default function DosagensPage() {
     paramSeVazio('estabilidade', interp?.estabilidade, 0)
     paramSeVazio('fluencia_mm', interp?.fluencia, 2)
     paramSeVazio('filler_ligante', fillerLigante, 2)
+    paramSeVazio('rtd', rtdMedia, 2)
     if (Object.keys(novosParams).length) {
       algumPreenchido = true
       setParametros(prev => {
@@ -345,7 +371,7 @@ export default function DosagensPage() {
 
     if (algumPreenchido) setPrefillAplicado(true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editando, marshallEdicao, riceEdicao, agregadosEdicao, combinadaEdicao, form, parametros, curvaLinhas, composicaoLinhas])
+  }, [editando, marshallEdicao, riceEdicao, rtdEdicao, agregadosEdicao, combinadaEdicao, form, parametros, curvaLinhas, composicaoLinhas])
 
   // A lista principal mostra só a revisão mais recente de cada família de projeto
   // (família = coalesce(projeto_pai_id, id)); o histórico completo fica disponível
@@ -776,6 +802,7 @@ export default function DosagensPage() {
                     <>
                       <Link className="text-purple-700" to={`/projetos/${d.id}/marshall`}>Dosagem Marshall</Link>
                       <Link className="text-lime-700" to={`/projetos/${d.id}/rice-teor`}>RICE-TEOR</Link>
+                      <Link className="text-amber-700" to={`/projetos/${d.id}/rtd`}>Ruptura Diametral</Link>
                       <Link className="text-indigo-700" to={`/projetos/${d.id}/agregados`}>Agregados</Link>
                       <Link className="text-teal-700" to={`/projetos/${d.id}/moldagem`}>Composição/Moldagem</Link>
                       <Link className="text-fuchsia-700" to={`/projetos/${d.id}/densidades`}>Densidades</Link>
