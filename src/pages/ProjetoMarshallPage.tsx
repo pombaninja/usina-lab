@@ -410,6 +410,7 @@ export default function ProjetoMarshallPage() {
               ['Estabilidade × teor', 'Estabilidade', '#059669', 'estabilidade', 0],
               ['Fluência × teor', 'Fluência', '#7c3aed', 'fluencia', 2],
               ['RBV (%) × teor', 'RBV', '#ea580c', 'rbv', 1],
+              ['V.A.M. (%) × teor', 'VAM', '#0891b2', 'vam', 2],
             ] as const).map(([titulo, chave, cor, campo, dec]) => {
               const valorOtimo = otimoCurvas ? otimoCurvas[campo] : null
               return (

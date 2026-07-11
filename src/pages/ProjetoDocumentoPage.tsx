@@ -186,7 +186,7 @@ export default function ProjetoDocumentoPage() {
     } catch { return null }
   }, [data])
   const dadosGraficoMarshall = marshallResultado?.pontos.map(p => ({
-    teor: p.teor, Densidade: p.densidadeAparente, Vazios: p.vazios, Estabilidade: p.estabilidade, Fluência: p.fluencia, RBV: p.rbv,
+    teor: p.teor, Densidade: p.densidadeAparente, Vazios: p.vazios, Estabilidade: p.estabilidade, Fluência: p.fluencia, VAM: p.vam, RBV: p.rbv,
   })) ?? []
 
   // ===== Ensaio RICE-TEOR — DMT por teor (reaproveita gmmRice) =====
@@ -450,6 +450,7 @@ export default function ProjetoDocumentoPage() {
               ['Estabilidade × teor', 'Estabilidade', '#059669', 'estabilidade', 0],
               ['Fluência × teor', 'Fluência', '#7c3aed', 'fluencia', 2],
               ['RBV (%) × teor', 'RBV', '#ea580c', 'rbv', 1],
+              ['V.A.M. (%) × teor', 'VAM', '#0891b2', 'vam', 2],
             ] as const).map(([titulo, chave, cor, campo, dec]) => {
               const valorOtimo = resultadoTeorOtimo ? resultadoTeorOtimo[campo] : null
               return (
