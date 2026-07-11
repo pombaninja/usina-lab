@@ -64,6 +64,7 @@ export default function ProjetoMoldagemPage() {
         material_nome: string
         peneiras: { peneira: string; aberturaMm: number }[]
         determinacoes: { pesoTotal: number; retidos: Record<string, number> }[]
+        pct_na_mistura: number | null
       }[]
     },
   })
@@ -85,13 +86,17 @@ export default function ProjetoMoldagemPage() {
     if (!agregados || !agregados.length || !composicao) return null
     const entradas: { pctNaMistura: number; linhas: LinhaAgregado[] }[] = []
     for (const a of agregados) {
+      // A % na mistura vem, em primeiro lugar, do próprio agregado (pct_na_mistura,
+      // definida na tela de Granulometria dos Agregados); a composição da dosagem
+      // (match por nome do material) fica como reserva para dados antigos.
       const match = (composicao ?? []).find(c => (c.material_nome ?? '').trim().toLowerCase() === a.material_nome.trim().toLowerCase())
-      if (!match) continue
+      const pct = a.pct_na_mistura ?? match?.percentual
+      if (pct == null || !Number.isFinite(pct)) continue
       const dets = a.determinacoes.filter(d => d.pesoTotal > 0)
       if (!dets.length) continue
       try {
         const linhas = calcularGranulometriaAgregado(a.peneiras, dets)
-        entradas.push({ pctNaMistura: match.percentual, linhas })
+        entradas.push({ pctNaMistura: pct, linhas })
       } catch {
         // agregado com dados insuficientes: ignora na combinada automática
       }

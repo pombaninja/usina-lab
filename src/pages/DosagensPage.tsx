@@ -178,9 +178,11 @@ export default function DosagensPage() {
     enabled: !!edicaoCbuqId,
     queryFn: async () => {
       const { data, error } = await supabase.from('agregado_granulometria')
-        .select('peneiras, determinacoes, pct_na_mistura').eq('dosagem_id', edicaoCbuqId!)
+        .select('material_nome, origem, peneiras, determinacoes, pct_na_mistura').eq('dosagem_id', edicaoCbuqId!).order('ordem')
       if (error) throw error
       return (data ?? []) as {
+        material_nome: string
+        origem: string | null
         peneiras: { peneira: string; aberturaMm: number }[]
         determinacoes: { pesoTotal: number; retidos: Record<string, number> }[]
         pct_na_mistura: number | null
@@ -337,9 +339,31 @@ export default function DosagensPage() {
       }
     }
 
+    // 4) Composição da mistura — só quando não há nenhuma linha preenchida:
+    // uma linha por agregado com % na mistura definida (material, origem e %).
+    const composicaoVazia = composicaoLinhas.every(l =>
+      l.material.trim() === '' && l.pct.trim() === '' && l.origem.trim() === '' && l.local.trim() === '' && l.densidade.trim() === '')
+    const linhasAgregados = agregadosEdicao
+      .filter(a => a.pct_na_mistura != null && Number.isFinite(a.pct_na_mistura) && (a.material_nome ?? '').trim() !== '')
+      .map(a => ({
+        origem: a.origem ?? '',
+        material: a.material_nome.trim(),
+        local: '',
+        pct: String(a.pct_na_mistura),
+        densidade: '',
+      }))
+    if (composicaoVazia && linhasAgregados.length) {
+      algumPreenchido = true
+      setComposicaoLinhas(prev => {
+        const aindaVazia = prev.every(l =>
+          l.material.trim() === '' && l.pct.trim() === '' && l.origem.trim() === '' && l.local.trim() === '' && l.densidade.trim() === '')
+        return aindaVazia ? linhasAgregados : prev
+      })
+    }
+
     if (algumPreenchido) setPrefillAplicado(true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editando, marshallEdicao, riceEdicao, agregadosEdicao, combinadaEdicao, form, parametros, curvaLinhas])
+  }, [editando, marshallEdicao, riceEdicao, agregadosEdicao, combinadaEdicao, form, parametros, curvaLinhas, composicaoLinhas])
 
   // A lista principal mostra só a revisão mais recente de cada família de projeto
   // (família = coalesce(projeto_pai_id, id)); o histórico completo fica disponível
