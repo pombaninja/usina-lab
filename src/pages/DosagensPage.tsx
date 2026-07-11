@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth, podeNoModulo } from '../lib/auth'
 import { normalizarPeneira } from '../lib/calculos/granulometria'
-import { calcularDosagemMarshall, interpolarNoTeor, type CpDosagem, type InterpolacaoTeor } from '../lib/calculos/dosagemMarshall'
+import { calcularDosagemMarshall, interpolarNoTeor, interpolarValorNoTeor, type CpDosagem, type InterpolacaoTeor } from '../lib/calculos/dosagemMarshall'
 import { calcularGranulometriaAgregado, combinarGranulometrias, type LinhaAgregado } from '../lib/calculos/agregadoGranulometria'
 import { gmmRice } from '../lib/calculos/teorBetume'
 
@@ -92,24 +92,6 @@ function validarComposicao(linhas: LinhaComposicao[]): string | null {
 
 // Arredondamento "sensato" para os prefills (Number para não carregar zeros à direita).
 const arred = (x: number, casas: number) => Number(x.toFixed(casas))
-
-// Interpolação linear simples de um valor por teor — mesma semântica de encaixe/saturação
-// do interpolarNoTeor (fora da faixa, satura no ponto de extremidade).
-function interpolarValorNoTeor(pontos: { teor: number; valor: number }[], alvo: number): number | null {
-  if (pontos.length === 0) return null
-  const ord = [...pontos].sort((a, b) => a.teor - b.teor)
-  if (alvo <= ord[0].teor) return ord[0].valor
-  if (alvo >= ord[ord.length - 1].teor) return ord[ord.length - 1].valor
-  for (let i = 0; i < ord.length - 1; i++) {
-    const a = ord[i]
-    const b = ord[i + 1]
-    if (alvo >= a.teor && alvo <= b.teor) {
-      const f = b.teor === a.teor ? 0 : (alvo - a.teor) / (b.teor - a.teor)
-      return a.valor + f * (b.valor - a.valor)
-    }
-  }
-  return null
-}
 
 export default function DosagensPage() {
   const qc = useQueryClient()

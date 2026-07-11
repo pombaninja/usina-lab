@@ -1,5 +1,28 @@
 import { describe, it, expect } from 'vitest'
-import { calcularDosagemMarshall, interpolarNoTeor, type CpDosagem } from './dosagemMarshall'
+import { calcularDosagemMarshall, interpolarNoTeor, interpolarValorNoTeor, type CpDosagem } from './dosagemMarshall'
+
+describe('interpolarValorNoTeor', () => {
+  const pontos = [
+    { teor: 4.0, valor: 2.672 },
+    { teor: 5.0, valor: 2.630 },
+    { teor: 6.0, valor: 2.590 },
+  ]
+
+  it('interpola linearmente entre os dois teores vizinhos', () => {
+    // f = (4.6 − 4.0)/(5.0 − 4.0) = 0.6 → 2.672 + 0.6·(2.630 − 2.672) = 2.6468
+    expect(interpolarValorNoTeor(pontos, 4.6)).toBeCloseTo(2.6468, 10)
+  })
+
+  it('satura no ponto de extremidade quando o teor alvo está fora da faixa', () => {
+    expect(interpolarValorNoTeor(pontos, 3.0)).toBeCloseTo(2.672, 10)
+    expect(interpolarValorNoTeor(pontos, 7.5)).toBeCloseTo(2.590, 10)
+  })
+
+  it('retorna null sem pontos e o próprio valor com um único ponto', () => {
+    expect(interpolarValorNoTeor([], 5.0)).toBeNull()
+    expect(interpolarValorNoTeor([{ teor: 5.0, valor: 2.63 }], 4.2)).toBeCloseTo(2.63, 10)
+  })
+})
 
 describe('calcularDosagemMarshall - aba Marshall FX 9,5 (golden)', () => {
   const params = { densidadeRealCap: 1.004, constantePrensa: 1.79 }

@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Legend, Tooltip, ReferenceLine, ReferenceDot } from 'recharts'
 import { supabase } from '../lib/supabase'
 import { useAuth, podeNoModulo } from '../lib/auth'
 import { gmmRice } from '../lib/calculos/teorBetume'
+import { interpolarValorNoTeor } from '../lib/calculos/dosagemMarshall'
 import { fmt } from '../lib/formato'
 
 // Uma linha por teor de CAP: massas do frasco Rice (A, B, C) + fator de temperatura.
@@ -42,9 +44,9 @@ export default function ProjetoRiceTeorPage() {
   const { data: dosagem } = useQuery({
     queryKey: ['dosagem-rice-teor', dosagemId],
     queryFn: async () => {
-      const { data, error } = await supabase.from('dosagens').select('id, nome').eq('id', dosagemId).single()
+      const { data, error } = await supabase.from('dosagens').select('id, nome, teor_otimo').eq('id', dosagemId).single()
       if (error) throw error
-      return data as { id: string; nome: string }
+      return data as { id: string; nome: string; teor_otimo: number | null }
     },
   })
 
@@ -144,6 +146,27 @@ export default function ProjetoRiceTeorPage() {
   const inp = 'border rounded p-1 w-28'
   const dmts = useMemo(() => linhas.map(dmtDaLinha), [linhas])
 
+  // Pontos DMT × teor calculados ao vivo (só linhas com teor válido e gmmRice sem erro), em ordem de teor.
+  const pontosGrafico = useMemo(() => {
+    const pts: { teor: number; DMT: number }[] = []
+    linhas.forEach((r, i) => {
+      const teor = n(r.teor)
+      const dmt = dmts[i]
+      if (!Number.isFinite(teor) || dmt == null || 'erro' in dmt) return
+      pts.push({ teor, DMT: dmt.valor })
+    })
+    return pts.sort((a, b) => a.teor - b.teor)
+  }, [linhas, dmts])
+
+  // Cruzamento do teor ótimo do projeto na curva DMT × teor (mesmo idioma das curvas
+  // da dosagem Marshall): DMT interpolada linearmente no teor ótimo. Sem cruzamento
+  // quando o projeto ainda não tem teor ótimo ou há menos de 2 pontos válidos.
+  const teorOtimo = dosagem?.teor_otimo ?? null
+  const dmtNoOtimo = useMemo(() => {
+    if (teorOtimo == null || pontosGrafico.length < 2) return null
+    return interpolarValorNoTeor(pontosGrafico.map(p => ({ teor: p.teor, valor: p.DMT })), teorOtimo)
+  }, [teorOtimo, pontosGrafico])
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -210,6 +233,37 @@ export default function ProjetoRiceTeorPage() {
           </tbody>
         </table>
       </div>
+
+      {pontosGrafico.length > 0 && (
+        <section className="bg-white p-4 rounded-xl shadow space-y-2">
+          <h2 className="font-semibold text-lg">Densidade máxima (DMT) × Teor</h2>
+          <LineChart width={520} height={280} data={pontosGrafico}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="teor" type="number" domain={['dataMin', 'dataMax']} label={{ value: 'Teor (%)', position: 'insideBottom', offset: -4 }} />
+            <YAxis domain={['auto', 'auto']} tickFormatter={(v: number) => fmt(v, 3)} width={70} />
+            <Tooltip />
+            <Legend />
+            {dmtNoOtimo != null && (
+              <ReferenceLine x={teorOtimo!} stroke="#334155" strokeDasharray="4 4" />
+            )}
+            {dmtNoOtimo != null && (
+              <ReferenceLine y={dmtNoOtimo} stroke="#334155" strokeDasharray="4 4" />
+            )}
+            {dmtNoOtimo != null && (
+              <ReferenceDot x={teorOtimo!} y={dmtNoOtimo} r={4} fill="#65a30d" stroke="#fff"
+                label={{ value: fmt(dmtNoOtimo, 3), position: 'top', fontSize: 11, fontWeight: 600 }} />
+            )}
+            <Line dataKey="DMT" stroke="#65a30d" strokeWidth={2} dot />
+          </LineChart>
+          {dmtNoOtimo != null
+            ? <p className="text-sm text-slate-600">DMT interpolada no teor ótimo ({fmt(teorOtimo, 2)}%): <b>{fmt(dmtNoOtimo, 3)}</b></p>
+            : <p className="text-xs text-slate-500">
+                {teorOtimo == null
+                  ? 'Sem cruzamento: o projeto ainda não tem teor ótimo definido (Dosagem Marshall).'
+                  : pontosGrafico.length < 2 ? 'Sem cruzamento: informe ao menos 2 teores com DMT válida.' : ''}
+              </p>}
+        </section>
+      )}
 
       {podeEditar && (
         <div className="flex items-center gap-3">

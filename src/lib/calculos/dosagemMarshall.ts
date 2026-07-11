@@ -162,6 +162,25 @@ export function calcularDosagemMarshall(
 // satura no ponto de extremidade. Retorna null se não houver pontos.
 const CAMPOS_INTERP = ['densidadeAparente', 'vazios', 'vcb', 'vam', 'rbv', 'estabilidade', 'fluencia'] as const
 
+// Interpolação linear de UM valor por teor — mesma semântica de encaixe/saturação
+// do interpolarNoTeor (fora da faixa ensaiada, satura no ponto de extremidade).
+// Usada nos cruzamentos de teor ótimo fora das curvas Marshall (ex.: DMT do RICE-TEOR).
+export function interpolarValorNoTeor(pontos: { teor: number; valor: number }[], alvo: number): number | null {
+  if (pontos.length === 0) return null
+  const ord = [...pontos].sort((a, b) => a.teor - b.teor)
+  if (alvo <= ord[0].teor) return ord[0].valor
+  if (alvo >= ord[ord.length - 1].teor) return ord[ord.length - 1].valor
+  for (let i = 0; i < ord.length - 1; i++) {
+    const a = ord[i]
+    const b = ord[i + 1]
+    if (alvo >= a.teor && alvo <= b.teor) {
+      const f = b.teor === a.teor ? 0 : (alvo - a.teor) / (b.teor - a.teor)
+      return a.valor + f * (b.valor - a.valor)
+    }
+  }
+  return null
+}
+
 export function interpolarNoTeor(pontos: PontoTeor[], teorAlvo: number): InterpolacaoTeor | null {
   if (pontos.length === 0) return null
   const ord = [...pontos].sort((a, b) => a.teor - b.teor)
