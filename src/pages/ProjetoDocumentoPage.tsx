@@ -10,7 +10,7 @@ import {
   calcularGranulometriaAgregado, combinarGranulometrias,
   type PeneiraRef, type DeterminacaoAgregado, type LinhaAgregado,
 } from '../lib/calculos/agregadoGranulometria'
-import { calcularDosagemMarshall, type CpDosagem } from '../lib/calculos/dosagemMarshall'
+import { calcularDosagemMarshall, interpolarNoTeor, type CpDosagem } from '../lib/calculos/dosagemMarshall'
 import { gmmRice } from '../lib/calculos/teorBetume'
 import { densidadeAgregadoGraudo, densidadeAgregadoMiudo, massaEspecificaRealMedia } from '../lib/calculos/densidades'
 import { equivalenteAreia, type DeterminacaoEA } from '../lib/calculos/equivalenteAreia'
@@ -309,6 +309,10 @@ export default function ProjetoDocumentoPage() {
 
   if (!data) return <p>Carregando…</p>
   const d = data.dosagem
+  // Índices interpolados no teor ótimo de projeto (dosagens.teor_otimo) — mesmo interpolarNoTeor da tela Marshall
+  const resultadoTeorOtimo = marshallResultado && d.teor_otimo != null
+    ? interpolarNoTeor(marshallResultado.pontos, d.teor_otimo)
+    : null
   const granulometriaLinhas = granulometria ? [...granulometria.linhas].sort((a, b) => b.aberturaMm - a.aberturaMm) : null
   const temMarshall = !!marshallResultado?.pontos.length
   const temDensidades = !!densidadesCalc && (densidadesCalc.graudosCalc.length > 0 || densidadesCalc.miudosCalc.length > 0)
@@ -459,6 +463,121 @@ export default function ProjetoDocumentoPage() {
               </div>
             ))}
           </div>
+
+          {/* Resultados detalhados por corpo de prova — mesmos dados (detalhes) da tela Marshall */}
+          {marshallResultado!.detalhes.length > 0 && (
+            <div className="mt-4">
+              <h3 className="font-semibold mb-2">Resultados detalhados por corpo de prova</h3>
+              {marshallResultado!.detalhes.map(det => {
+                const temInconsistente = det.cps.some(c => c.inconsistente)
+                return (
+                  <div key={det.teor} className="mb-3 doc-evitar-quebra">
+                    <h4 className="font-semibold text-xs mb-1">Teor {fmt(det.teor, 1)}%</h4>
+                    <table className="w-full border-collapse text-[8px] leading-tight">
+                      <thead>
+                        <tr className="bg-slate-100 text-center">
+                          <th className="border p-0.5" rowSpan={2}>CP</th>
+                          <th className="border p-0.5" rowSpan={2}>% CAP</th>
+                          <th className="border p-0.5" colSpan={2}>Peso (g)</th>
+                          <th className="border p-0.5" colSpan={5}>Densidade</th>
+                          <th className="border p-0.5" colSpan={2}>V.A.M. / R.B.V.</th>
+                          <th className="border p-0.5" colSpan={2}>Corpo de prova</th>
+                          <th className="border p-0.5" colSpan={4}>Estabilidade</th>
+                          <th className="border p-0.5" colSpan={2}>Fluência</th>
+                        </tr>
+                        <tr className="bg-slate-100 text-center">
+                          <th className="border p-0.5">Peso no ar</th>
+                          <th className="border p-0.5">Peso na água</th>
+                          <th className="border p-0.5">Volume cm³</th>
+                          <th className="border p-0.5">Densidade aparente</th>
+                          <th className="border p-0.5">Teórica Rice</th>
+                          <th className="border p-0.5">V.V (% vazios)</th>
+                          <th className="border p-0.5">V.C.B. (%)</th>
+                          <th className="border p-0.5">V.A.M. (%)</th>
+                          <th className="border p-0.5">R.B.V. (%)</th>
+                          <th className="border p-0.5">Vol. cm³</th>
+                          <th className="border p-0.5">Altura cm</th>
+                          <th className="border p-0.5">Fator correção</th>
+                          <th className="border p-0.5">Leitura</th>
+                          <th className="border p-0.5">Calcul.</th>
+                          <th className="border p-0.5">Corrig. kg</th>
+                          <th className="border p-0.5">Leitura mm</th>
+                          <th className="border p-0.5">Pol.</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {det.cps.map(c => (
+                          <tr key={c.cp} className="text-center">
+                            <td className="border p-0.5 font-semibold">{c.cp}</td>
+                            <td className="border p-0.5">{fmt(c.teor, 1)}</td>
+                            <td className="border p-0.5">{fmt(c.pesoAr, 1)}</td>
+                            <td className="border p-0.5">{fmt(c.pesoImerso, 1)}</td>
+                            <td className="border p-0.5">{fmt(c.volume, 1)}</td>
+                            <td className={'border p-0.5' + (c.inconsistente ? ' text-red-700 font-bold' : '')}>{fmt(c.densidadeAparente, 3)}</td>
+                            <td className={'border p-0.5' + (c.inconsistente ? ' text-red-700 font-bold' : '')}>{fmt(c.riceTeorica, 3)}</td>
+                            <td className={'border p-0.5' + (c.inconsistente ? ' text-red-700 font-bold' : '')}>{fmt(c.vazios, 1)}</td>
+                            <td className="border p-0.5">{fmt(c.vcb, 1)}</td>
+                            <td className="border p-0.5">{fmt(c.vam, 1)}</td>
+                            <td className="border p-0.5">{fmt(c.rbv, 1)}</td>
+                            <td className="border p-0.5">{fmt(c.volume, 1)}</td>
+                            <td className="border p-0.5">{c.alturaCm != null ? fmt(c.alturaCm, 2) : '—'}</td>
+                            <td className="border p-0.5">{fmt(c.fator, 2)}</td>
+                            <td className="border p-0.5">{fmt(c.leitura, 0)}</td>
+                            <td className="border p-0.5">{fmt(c.calcul, 0)}</td>
+                            <td className="border p-0.5">{fmt(c.corrig, 0)}</td>
+                            <td className="border p-0.5">{fmt(c.fluenciaMm, 1)}</td>
+                            <td className="border p-0.5">{fmt(c.fluenciaPol, 1)}</td>
+                          </tr>
+                        ))}
+                        <tr className="text-center font-semibold bg-slate-50">
+                          <td className="border p-0.5">Média</td>
+                          <td className="border p-0.5">—</td>
+                          <td className="border p-0.5">—</td>
+                          <td className="border p-0.5">—</td>
+                          <td className="border p-0.5">{fmt(det.media.volume, 1)}</td>
+                          <td className="border p-0.5">{fmt(det.media.densidadeAparente, 3)}</td>
+                          <td className="border p-0.5">{fmt(det.media.riceTeorica, 3)}</td>
+                          <td className="border p-0.5">{fmt(det.media.vazios, 1)}</td>
+                          <td className="border p-0.5">{fmt(det.media.vcb, 1)}</td>
+                          <td className="border p-0.5">{fmt(det.media.vam, 1)}</td>
+                          <td className="border p-0.5">{fmt(det.media.rbv, 1)}</td>
+                          <td className="border p-0.5">{fmt(det.media.volume, 1)}</td>
+                          <td className="border p-0.5">{det.media.alturaCm != null ? fmt(det.media.alturaCm, 2) : '—'}</td>
+                          <td className="border p-0.5">{fmt(det.media.fator, 2)}</td>
+                          <td className="border p-0.5">{fmt(det.media.leitura, 0)}</td>
+                          <td className="border p-0.5">{fmt(det.media.calcul, 0)}</td>
+                          <td className="border p-0.5">{fmt(det.media.corrig, 0)}</td>
+                          <td className="border p-0.5">{fmt(det.media.fluenciaMm, 1)}</td>
+                          <td className="border p-0.5">{fmt(det.media.fluenciaPol, 1)}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                    {temInconsistente && (
+                      <p className="text-[8px] text-red-700 font-semibold mt-0.5">
+                        Rice teórica ≤ densidade aparente em CP destacado — confira a Rice (vazios impossível ≤ 0).
+                      </p>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Resultado interpolado no teor ótimo de projeto */}
+          {resultadoTeorOtimo && (
+            <div className="mt-4 doc-evitar-quebra">
+              <h3 className="font-semibold mb-2">Resultado no teor ótimo ({fmt(d.teor_otimo, 2)}%)</h3>
+              <div className="grid grid-cols-4 gap-x-6 gap-y-2 text-xs">
+                <div><span className="text-slate-500 block">Densidade aparente</span>{fmt(resultadoTeorOtimo.densidadeAparente, 3)}</div>
+                <div><span className="text-slate-500 block">Vazios (%)</span>{fmt(resultadoTeorOtimo.vazios, 1)}</div>
+                <div><span className="text-slate-500 block">VCB (%)</span>{fmt(resultadoTeorOtimo.vcb, 1)}</div>
+                <div><span className="text-slate-500 block">VAM (%)</span>{fmt(resultadoTeorOtimo.vam, 1)}</div>
+                <div><span className="text-slate-500 block">RBV (%)</span>{fmt(resultadoTeorOtimo.rbv, 1)}</div>
+                <div><span className="text-slate-500 block">Estabilidade (kg)</span>{fmt(resultadoTeorOtimo.estabilidade, 0)}</div>
+                <div><span className="text-slate-500 block">Fluência (mm)</span>{fmt(resultadoTeorOtimo.fluencia, 1)}</div>
+              </div>
+            </div>
+          )}
         </section>
       )}
 
