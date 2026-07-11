@@ -9,3 +9,6 @@
 /* Quebras de página para documentos impressos (Documento do Projeto, laudos) */
 .doc-pagina { break-before: page; }
 .doc-evitar-quebra { break-inside: avoid; }
+
+/* Gráficos (recharts) sempre centralizados no seu bloco — telas e documentos impressos */
+.recharts-wrapper { margin-left: auto; margin-right: auto; }
