@@ -1,9 +1,12 @@
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth, podeNoModulo } from '../lib/auth'
 import { normalizarPeneira } from '../lib/calculos/granulometria'
+import { calcularDosagemMarshall, interpolarNoTeor, type CpDosagem, type InterpolacaoTeor } from '../lib/calculos/dosagemMarshall'
+import { calcularGranulometriaAgregado, combinarGranulometrias, type LinhaAgregado } from '../lib/calculos/agregadoGranulometria'
+import { gmmRice } from '../lib/calculos/teorBetume'
 
 interface LinhaCurva { peneira: string; passante: string; tolerancia: string }
 interface LinhaComposicao { origem: string; material: string; local: string; pct: string; densidade: string }
@@ -87,6 +90,27 @@ function validarComposicao(linhas: LinhaComposicao[]): string | null {
   return null
 }
 
+// Arredondamento "sensato" para os prefills (Number para não carregar zeros à direita).
+const arred = (x: number, casas: number) => Number(x.toFixed(casas))
+
+// Interpolação linear simples de um valor por teor — mesma semântica de encaixe/saturação
+// do interpolarNoTeor (fora da faixa, satura no ponto de extremidade).
+function interpolarValorNoTeor(pontos: { teor: number; valor: number }[], alvo: number): number | null {
+  if (pontos.length === 0) return null
+  const ord = [...pontos].sort((a, b) => a.teor - b.teor)
+  if (alvo <= ord[0].teor) return ord[0].valor
+  if (alvo >= ord[ord.length - 1].teor) return ord[ord.length - 1].valor
+  for (let i = 0; i < ord.length - 1; i++) {
+    const a = ord[i]
+    const b = ord[i + 1]
+    if (alvo >= a.teor && alvo <= b.teor) {
+      const f = b.teor === a.teor ? 0 : (alvo - a.teor) / (b.teor - a.teor)
+      return a.valor + f * (b.valor - a.valor)
+    }
+  }
+  return null
+}
+
 export default function DosagensPage() {
   const qc = useQueryClient()
   const { perfis } = useAuth()
@@ -99,6 +123,10 @@ export default function DosagensPage() {
   const [parametros, setParametros] = useState<Record<string, string>>({})
   const [erro, setErro] = useState('')
   const [revisoesAbertas, setRevisoesAbertas] = useState<Set<string>>(new Set())
+  // Prefill dos ensaios: roda UMA vez por abertura de edição (guard por dosagem);
+  // resetado ao abrir outra dosagem ou fechar o formulário.
+  const prefillRef = useRef<string | null>(null)
+  const [prefillAplicado, setPrefillAplicado] = useState(false)
 
   const { data: empresas } = useQuery({ queryKey: ['empresas'], queryFn: async () => (await supabase.from('empresas').select('id, nome_exibicao')).data ?? [] })
   const { data: especs } = useQuery({ queryKey: ['especificacoes'], queryFn: async () => (await supabase.from('especificacoes').select('id, nome')).data ?? [] })
@@ -106,6 +134,205 @@ export default function DosagensPage() {
     queryKey: ['dosagens'],
     queryFn: async () => (await supabase.from('dosagens').select('*, empresas(nome_exibicao), especificacoes(nome)').order('criado_em', { ascending: false })).data as Dosagem[] ?? [],
   })
+
+  // ===== Fontes para o prefill dos resultados dos ensaios (somente leitura) =====
+  // Carregadas quando o formulário de edição abre para um projeto CBUQ existente.
+  const edicaoCbuqId = editando && editando.tipo === 'cbuq' ? editando.id : null
+
+  const { data: marshallEdicao } = useQuery({
+    queryKey: ['dosagem-edicao-marshall', edicaoCbuqId],
+    enabled: !!edicaoCbuqId,
+    queryFn: async () => {
+      const [pmR, cpR] = await Promise.all([
+        supabase.from('projeto_marshall').select('densidade_real_cap, constante_prensa, correcao_fluencia').eq('dosagem_id', edicaoCbuqId!).maybeSingle(),
+        supabase.from('projeto_marshall_cp').select('teor, cp, peso_ar, peso_imerso, rice_teorica, leitura_estabilidade, fator_correcao, altura_cm, leitura_fluencia').eq('dosagem_id', edicaoCbuqId!),
+      ])
+      if (pmR.error) throw pmR.error
+      if (cpR.error) throw cpR.error
+      return {
+        pm: pmR.data as { densidade_real_cap: number; constante_prensa: number; correcao_fluencia: number | null } | null,
+        cps: (cpR.data ?? []) as {
+          teor: number; cp: number; peso_ar: number | null; peso_imerso: number | null; rice_teorica: number | null
+          leitura_estabilidade: number | null; fator_correcao: number | null; altura_cm: number | null; leitura_fluencia: number | null
+        }[],
+      }
+    },
+  })
+
+  const { data: riceEdicao } = useQuery({
+    queryKey: ['dosagem-edicao-rice-teor', edicaoCbuqId],
+    enabled: !!edicaoCbuqId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from('projeto_rice_teor')
+        .select('teor, peso_amostra, frasco_agua, frasco_amostra_agua, fator_temp').eq('dosagem_id', edicaoCbuqId!)
+      if (error) throw error
+      return (data ?? []) as {
+        teor: number; peso_amostra: number | null; frasco_agua: number | null
+        frasco_amostra_agua: number | null; fator_temp: number | null
+      }[]
+    },
+  })
+
+  const { data: agregadosEdicao } = useQuery({
+    queryKey: ['dosagem-edicao-agregados', edicaoCbuqId],
+    enabled: !!edicaoCbuqId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from('agregado_granulometria')
+        .select('peneiras, determinacoes, pct_na_mistura').eq('dosagem_id', edicaoCbuqId!)
+      if (error) throw error
+      return (data ?? []) as {
+        peneiras: { peneira: string; aberturaMm: number }[]
+        determinacoes: { pesoTotal: number; retidos: Record<string, number> }[]
+        pct_na_mistura: number | null
+      }[]
+    },
+  })
+
+  // Preenche automaticamente SOMENTE campos vazios com os resultados dos ensaios
+  // interpolados no teor ótimo (mesmo padrão do puxa-Rice da tela Marshall).
+  // Espera TODAS as consultas-filhas resolverem antes de rodar o guard.
+  useEffect(() => {
+    if (!editando || editando.tipo !== 'cbuq') return
+    if (prefillRef.current === editando.id) return
+    if (marshallEdicao === undefined || riceEdicao === undefined || agregadosEdicao === undefined) return
+    prefillRef.current = editando.id
+
+    const teorOtimoRaw = form.teor_otimo ?? editando.teor_otimo
+    const teorOtimo = teorOtimoRaw == null || teorOtimoRaw === '' ? NaN : Number(teorOtimoRaw)
+    const temTeor = Number.isFinite(teorOtimo) && teorOtimo > 0
+
+    // --- Dosagem Marshall: índices interpolados no teor ótimo ---
+    let interp: InterpolacaoTeor | null = null
+    const densLigante = marshallEdicao.pm?.densidade_real_cap ?? null
+    if (temTeor && marshallEdicao.pm) {
+      const cps: CpDosagem[] = []
+      for (const c of marshallEdicao.cps) {
+        if (c.peso_ar == null || c.peso_imerso == null || c.rice_teorica == null) continue
+        cps.push({
+          teor: Number(c.teor), cp: Number(c.cp),
+          pesoAr: c.peso_ar, pesoImerso: c.peso_imerso, riceTeorica: c.rice_teorica,
+          leituraEstabilidade: c.leitura_estabilidade ?? undefined,
+          fatorCorrecao: c.fator_correcao ?? undefined,
+          alturaCm: c.altura_cm ?? undefined,
+          leituraFluencia: c.leitura_fluencia ?? undefined,
+        })
+      }
+      if (cps.length) {
+        try {
+          const { pontos } = calcularDosagemMarshall(cps, {
+            densidadeRealCap: marshallEdicao.pm.densidade_real_cap,
+            constantePrensa: marshallEdicao.pm.constante_prensa,
+            correcaoFluencia: marshallEdicao.pm.correcao_fluencia ?? 1,
+          })
+          interp = interpolarNoTeor(pontos, teorOtimo)
+        } catch { /* dados incompletos/inconsistentes: sem prefill Marshall */ }
+      }
+    }
+
+    // --- RICE-TEOR: DMT interpolada no teor ótimo (fallback: rice_teorica dos CPs Marshall) ---
+    let dmt: number | null = null
+    if (temTeor) {
+      const pontosRice: { teor: number; valor: number }[] = []
+      for (const r of riceEdicao) {
+        if (r.peso_amostra == null || r.frasco_agua == null || r.frasco_amostra_agua == null) continue
+        try {
+          pontosRice.push({ teor: Number(r.teor), valor: gmmRice(r.peso_amostra, r.frasco_agua, r.frasco_amostra_agua, r.fator_temp ?? 1) })
+        } catch { /* leituras Rice inconsistentes: ignora este teor */ }
+      }
+      if (pontosRice.length) {
+        dmt = interpolarValorNoTeor(pontosRice, teorOtimo)
+      } else if (marshallEdicao.cps.length) {
+        const ricePorTeor = new Map<number, number[]>()
+        for (const c of marshallEdicao.cps) {
+          if (c.rice_teorica == null) continue
+          const arr = ricePorTeor.get(Number(c.teor)) ?? []
+          arr.push(c.rice_teorica)
+          ricePorTeor.set(Number(c.teor), arr)
+        }
+        const pts = [...ricePorTeor.entries()].map(([teor, vs]) => ({ teor, valor: vs.reduce((a, b) => a + b, 0) / vs.length }))
+        if (pts.length) dmt = interpolarValorNoTeor(pts, teorOtimo)
+      }
+    }
+
+    // --- Granulometria dos agregados: curva combinada ---
+    const entradas: { pctNaMistura: number; linhas: LinhaAgregado[] }[] = []
+    for (const a of agregadosEdicao) {
+      if (a.pct_na_mistura == null) continue
+      try {
+        entradas.push({ pctNaMistura: a.pct_na_mistura, linhas: calcularGranulometriaAgregado(a.peneiras ?? [], a.determinacoes ?? []) })
+      } catch { /* determinações inválidas: agregado não participa da combinada */ }
+    }
+    const combinada = entradas.length ? combinarGranulometrias(entradas) : null
+
+    let fillerLigante: number | null = null
+    if (combinada && temTeor) {
+      const p200 = combinada.find(l => normalizarPeneira(l.peneira) === '200')
+      if (p200) fillerLigante = p200.pctPassa / teorOtimo
+    }
+
+    let algumPreenchido = false
+
+    // 1) Características (parametros_projeto) — só chaves vazias
+    const novosParams: Record<string, string> = {}
+    const paramSeVazio = (key: string, valor: number | null | undefined, casas: number) => {
+      if (valor == null || !Number.isFinite(valor)) return
+      if ((parametros[key] ?? '').trim() !== '') return
+      novosParams[key] = String(arred(valor, casas))
+    }
+    paramSeVazio('vazios', interp?.vazios, 2)
+    paramSeVazio('vam', interp?.vam, 2)
+    paramSeVazio('rbv', interp?.rbv, 2)
+    paramSeVazio('estabilidade', interp?.estabilidade, 0)
+    paramSeVazio('fluencia_mm', interp?.fluencia, 2)
+    paramSeVazio('filler_ligante', fillerLigante, 2)
+    if (Object.keys(novosParams).length) {
+      algumPreenchido = true
+      setParametros(prev => {
+        const next = { ...prev }
+        for (const [k, v] of Object.entries(novosParams)) {
+          if ((prev[k] ?? '').trim() === '') next[k] = v
+        }
+        return next
+      })
+    }
+
+    // 2) Massas específicas do cabeçalho — só campos vazios
+    const novosForm: Record<string, number> = {}
+    const formVazioEm = (k: string) => form[k] == null || form[k] === ''
+    if (dmt != null && Number.isFinite(dmt) && formVazioEm('dens_max_teorica_projeto')) novosForm.dens_max_teorica_projeto = arred(dmt, 3)
+    if (interp && formVazioEm('densidade_aparente_projeto')) novosForm.densidade_aparente_projeto = arred(interp.densidadeAparente, 3)
+    if (densLigante != null && formVazioEm('densidade_ligante')) novosForm.densidade_ligante = arred(densLigante, 3)
+    if (Object.keys(novosForm).length) {
+      algumPreenchido = true
+      setForm(prev => {
+        const next = { ...prev }
+        for (const [k, v] of Object.entries(novosForm)) {
+          if (prev[k] == null || prev[k] === '') next[k] = v
+        }
+        return next
+      })
+    }
+
+    // 3) Curva de projeto — só "% passando projeto" vazios (tolerância intocada)
+    if (combinada) {
+      const passaPorPeneira = new Map(combinada.map(l => [normalizarPeneira(l.peneira), l.pctPassa]))
+      let curvaMudou = false
+      const novasLinhas = curvaLinhas.map(l => {
+        if (l.passante.trim() !== '') return l
+        const pct = passaPorPeneira.get(normalizarPeneira(l.peneira))
+        if (pct == null || !Number.isFinite(pct)) return l
+        curvaMudou = true
+        return { ...l, passante: String(arred(pct, 1)) }
+      })
+      if (curvaMudou) {
+        algumPreenchido = true
+        setCurvaLinhas(novasLinhas)
+      }
+    }
+
+    if (algumPreenchido) setPrefillAplicado(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editando, marshallEdicao, riceEdicao, agregadosEdicao, form, parametros, curvaLinhas])
 
   // A lista principal mostra só a revisão mais recente de cada família de projeto
   // (família = coalesce(projeto_pai_id, id)); o histórico completo fica disponível
@@ -138,6 +365,8 @@ export default function DosagensPage() {
   }
 
   function limparForm() {
+    prefillRef.current = null
+    setPrefillAplicado(false)
     setEditando(null)
     setForm(formVazio)
     setCurvaLinhas([])
@@ -147,6 +376,8 @@ export default function DosagensPage() {
   }
 
   async function abrirEdicao(d: Dosagem) {
+    prefillRef.current = null
+    setPrefillAplicado(false)
     setEditando(d)
     setForm({
       contexto: d.contexto ?? '', tipo: d.tipo ?? '', nome: d.nome, empresa_id: d.empresa_id, especificacao_id: d.especificacao_id,
@@ -466,6 +697,9 @@ export default function DosagensPage() {
 
               <div className="space-y-2">
                 <h2 className="font-semibold text-sm">Características de projeto (obtido)</h2>
+                {prefillAplicado && (
+                  <p className="text-xs text-slate-500">Valores em branco preenchidos automaticamente com os resultados dos ensaios no teor ótimo (edite à vontade).</p>
+                )}
                 <div className="grid grid-cols-3 gap-3">
                   {CARACTERISTICAS_CBUQ.map(c => (
                     <label key={c.key} className="text-sm">{c.label}<input {...paramNum(c.key)} /></label>
