@@ -110,31 +110,19 @@ export default function ProjetoRtdPage() {
         if (l.altura_cm != null && !Number.isFinite(l.altura_cm)) throw new Error('Altura inválida em um dos corpos de prova.')
       }
 
-      const comId = salvar.filter(l => l.id)
-      const semId = salvar.filter(l => !l.id)
+      // O nº do CP é posicional (1..N): remover um CP do meio renumera os seguintes.
+      // Upsert dos sobreviventes colidiria com unique(dosagem_id, cp) enquanto a linha
+      // antiga ainda existe — por isso o salvamento apaga tudo e regrava (não há FK
+      // apontando para projeto_rtd_cp, então os ids podem ser recriados a cada save).
+      const { error: errDel } = await supabase.from('projeto_rtd_cp').delete().eq('dosagem_id', dosagemId)
+      if (errDel) throw new Error('Falha ao salvar o ensaio de Ruptura Diametral: ' + errDel.message)
 
-      if (comId.length) {
-        const { error } = await supabase.from('projeto_rtd_cp').upsert(comId, { onConflict: 'id' })
-        if (error) throw new Error('Falha ao salvar o ensaio de Ruptura Diametral: ' + error.message)
-      }
-      if (semId.length) {
-        const { data, error } = await supabase.from('projeto_rtd_cp')
-          .insert(semId.map(({ id: _id, ...resto }) => resto)).select('id')
-        if (error) throw new Error('Falha ao salvar o ensaio de Ruptura Diametral: ' + error.message)
-        data?.forEach((row: { id: string }, idx: number) => { semId[idx].id = row.id })
-      }
-
-      const { data: antigos, error: errAntigos } = await supabase.from('projeto_rtd_cp').select('id').eq('dosagem_id', dosagemId)
-      if (errAntigos) throw new Error('Falha ao conferir corpos de prova existentes: ' + errAntigos.message)
-      const idsAtuais = new Set(salvar.map(l => l.id).filter((v): v is string => !!v))
-      const idsRemover = (antigos ?? []).filter((x: { id: string }) => !idsAtuais.has(x.id)).map((x: { id: string }) => x.id)
-      if (idsRemover.length) {
-        const { error: errDel } = await supabase.from('projeto_rtd_cp').delete().in('id', idsRemover)
-        if (errDel) throw new Error('Falha ao remover corpos de prova excluídos: ' + errDel.message)
-      }
+      const { data: inseridos, error } = await supabase.from('projeto_rtd_cp')
+        .insert(salvar.map(({ id: _id, ...resto }) => resto)).select('id').order('ordem')
+      if (error) throw new Error('Falha ao salvar o ensaio de Ruptura Diametral: ' + error.message)
 
       // Reflete os ids atribuídos, mantendo a ordem exibida (CP = posição na lista).
-      setLinhas(preenchidos.map((r, idx) => ({ ...r, id: salvar[idx].id })))
+      setLinhas(preenchidos.map((r, idx) => ({ ...r, id: inseridos?.[idx]?.id })))
     },
     onSuccess: () => setErro(''),
     onError: (e: Error) => setErro(e.message),
