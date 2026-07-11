@@ -24,7 +24,12 @@ export default function ProjetoMarshallPage() {
 
   const [densidadeRealCap, setDensidadeRealCap] = useState('1.004')
   const [constantePrensa, setConstantePrensa] = useState('1.79')
-  const [correcaoFluencia, setCorrecaoFluencia] = useState('1')
+  // Leitura de fluência por CP em mm (fator 1) ou em unidades do extensômetro (1 unid = 0,254 mm).
+  const [fluenciaUnidade, setFluenciaUnidade] = useState<'mm' | 'unidades'>('mm')
+  const FATOR_UNIDADE_FLUENCIA = 0.254
+  const correcaoFluenciaNum = fluenciaUnidade === 'unidades' ? FATOR_UNIDADE_FLUENCIA : 1
+  // Faixa da especificação: 2 a 4 mm, que equivale a 8 a 16 unidades de leitura.
+  const faixaFluencia = fluenciaUnidade === 'unidades' ? { min: 8, max: 16, rotulo: '8 a 16 unidades' } : { min: 2, max: 4, rotulo: '2 a 4 mm' }
   const [teores, setTeores] = useState<TeorBloco[]>([teorVazio()])
   const [teorOtimoInput, setTeorOtimoInput] = useState('')
   const [erro, setErro] = useState('')
@@ -91,7 +96,7 @@ export default function ProjetoMarshallPage() {
     if (existente.pm) {
       setDensidadeRealCap(String(existente.pm.densidade_real_cap))
       setConstantePrensa(String(existente.pm.constante_prensa))
-      setCorrecaoFluencia(existente.pm.correcao_fluencia != null ? String(existente.pm.correcao_fluencia) : '1')
+      setFluenciaUnidade(existente.pm.correcao_fluencia != null && Math.abs(existente.pm.correcao_fluencia - 0.254) < 1e-9 ? 'unidades' : 'mm')
     }
     if (existente.cps.length) {
       const porTeor = new Map<number, typeof existente.cps>()
@@ -200,12 +205,12 @@ export default function ProjetoMarshallPage() {
       return { ok: true as const, ...calcularDosagemMarshall(cpsParaCalculo, {
         densidadeRealCap: n(densidadeRealCap) || 1.004,
         constantePrensa: n(constantePrensa) || 1.79,
-        correcaoFluencia: n(correcaoFluencia) || 1,
+        correcaoFluencia: correcaoFluenciaNum,
       }) }
     } catch (e) {
       return { ok: false as const, problema: (e as Error).message }
     }
-  }, [cpsParaCalculo, densidadeRealCap, constantePrensa, correcaoFluencia])
+  }, [cpsParaCalculo, densidadeRealCap, constantePrensa, correcaoFluenciaNum])
 
   useEffect(() => {
     if (resultado?.ok && resultado.teorOtimoSugerido != null && teorOtimoInput === '') {
@@ -241,7 +246,7 @@ export default function ProjetoMarshallPage() {
         dosagem_id: dosagemId,
         densidade_real_cap: densRealCapNum,
         constante_prensa: constPrensaNum,
-        correcao_fluencia: n(correcaoFluencia) || 1,
+        correcao_fluencia: correcaoFluenciaNum,
       }, { onConflict: 'dosagem_id' })
       if (errPm) throw new Error('Falha ao salvar parâmetros da dosagem Marshall: ' + errPm.message)
 
@@ -307,9 +312,13 @@ export default function ProjetoMarshallPage() {
         <label className="text-sm">Constante da prensa
           <input className={inp} type="number" step="any" value={constantePrensa} disabled={!podeEditar}
             onChange={e => setConstantePrensa(e.target.value)} /></label>
-        <label className="text-sm">Correção de fluência
-          <input className={inp} type="number" step="any" value={correcaoFluencia} disabled={!podeEditar}
-            onChange={e => setCorrecaoFluencia(e.target.value)} /></label>
+        <label className="text-sm">Leitura de fluência em
+          <select className={inp} value={fluenciaUnidade} disabled={!podeEditar}
+            onChange={e => setFluenciaUnidade(e.target.value as 'mm' | 'unidades')}>
+            <option value="mm">mm (direto)</option>
+            <option value="unidades">unidades de leitura (1 unid = 0,254 mm)</option>
+          </select>
+          <span className="block text-xs text-slate-500 mt-1">Faixa da especificação: {faixaFluencia.rotulo}. Conversão aplicada por corpo de prova.</span></label>
       </section>
 
       <section className="space-y-3">
@@ -338,7 +347,7 @@ export default function ProjetoMarshallPage() {
             <table className="w-full text-sm">
               <thead><tr className="text-left border-b">
                 <th className="p-2">CP</th><th>Peso ar (g)</th><th>Peso imerso (g)</th><th>Rice teórica</th>
-                <th>Leitura estab.</th><th>Fator (vazio = tabela)</th><th>Altura (cm)</th><th>Leitura fluência</th>
+                <th>Leitura estab.</th><th>Fator (vazio = tabela)</th><th>Altura (cm)</th><th>Leitura fluência ({fluenciaUnidade === 'unidades' ? 'unid.' : 'mm'})</th>
               </tr></thead>
               <tbody>{t.cps.map((c, iCp) => (
                 <tr key={iCp} className="border-b">
@@ -347,10 +356,14 @@ export default function ProjetoMarshallPage() {
                     // Fator de correção plausível fica na faixa da tabela DER (0,76–1,46); valor muito
                     // fora disso é quase sempre outro dado digitado no campo errado (ex.: % de vazios).
                     const fatorSuspeito = campo === 'fator' && c.fator !== '' && (n(c.fator) < 0.5 || n(c.fator) > 2)
+                    // Fluência fora da faixa da especificação (2–4 mm ou 8–16 unidades, conforme o seletor).
+                    const fluenciaFora = campo === 'fluencia' && c.fluencia !== ''
+                      && (n(c.fluencia) < faixaFluencia.min || n(c.fluencia) > faixaFluencia.max)
                     return (
                       <td key={campo}><input
-                        className={`border rounded p-1 w-24 ${fatorSuspeito ? 'border-red-500 bg-red-50 text-red-700' : ''}`}
-                        title={fatorSuspeito ? 'Fator fora da faixa da tabela (0,76–1,46). Deixe vazio para usar a tabela pelo volume.' : undefined}
+                        className={`border rounded p-1 w-24 ${fatorSuspeito ? 'border-red-500 bg-red-50 text-red-700' : ''}${fluenciaFora ? ' border-amber-500 bg-amber-50 text-amber-800' : ''}`}
+                        title={fatorSuspeito ? 'Fator fora da faixa da tabela (0,76–1,46). Deixe vazio para usar a tabela pelo volume.'
+                          : fluenciaFora ? `Fluência fora da faixa da especificação (${faixaFluencia.rotulo}).` : undefined}
                         type="number" step="any" value={c[campo]} disabled={!podeEditar}
                         onChange={e => alterarCp(iTeor, iCp, campo, e.target.value)} /></td>
                     )
@@ -360,6 +373,9 @@ export default function ProjetoMarshallPage() {
             </table>
             {t.cps.some(c => c.fator !== '' && (n(c.fator) < 0.5 || n(c.fator) > 2)) && (
               <p className="text-red-600 text-sm">Fator de correção fora da faixa da tabela DER (0,76–1,46) — confira se não foi digitado outro dado no campo. Deixe o fator vazio para o sistema buscar na tabela pelo volume do CP.</p>
+            )}
+            {t.cps.some(c => c.fluencia !== '' && (n(c.fluencia) < faixaFluencia.min || n(c.fluencia) > faixaFluencia.max)) && (
+              <p className="text-amber-700 text-sm">Fluência fora da faixa da especificação ({faixaFluencia.rotulo}) em CP destacado.</p>
             )}
           </div>
         ))}
