@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Legend, Tooltip } from 'recharts'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Legend, Tooltip, ReferenceLine, ReferenceDot } from 'recharts'
 import { supabase } from '../lib/supabase'
 import { useAuth, podeNoModulo } from '../lib/auth'
 import { calcularDosagemMarshall, interpolarNoTeor, type CpDosagem } from '../lib/calculos/dosagemMarshall'
@@ -221,6 +221,15 @@ export default function ProjetoMarshallPage() {
       }))
     : []
 
+  // Cruzamento do teor ótimo escolhido nas curvas: índices interpolados no teor digitado,
+  // desenhados em cada gráfico como linhas tracejadas (vertical no teor, horizontal no valor).
+  const otimoCurvas = useMemo(() => {
+    if (!resultado?.ok || resultado.pontos.length === 0) return null
+    const alvo = n(teorOtimoInput)
+    if (!Number.isFinite(alvo)) return null
+    return interpolarNoTeor(resultado.pontos, alvo)
+  }, [resultado, teorOtimoInput])
+
   const salvar = useMutation({
     mutationFn: async () => {
       const densRealCapNum = n(densidadeRealCap)
@@ -380,24 +389,37 @@ export default function ProjetoMarshallPage() {
 
           <div className="grid grid-cols-2 gap-6">
             {([
-              ['Densidade aparente × teor', 'Densidade', '#dc2626'],
-              ['Vazios (%) × teor', 'Vazios', '#2563eb'],
-              ['Estabilidade × teor', 'Estabilidade', '#059669'],
-              ['Fluência × teor', 'Fluência', '#7c3aed'],
-              ['RBV (%) × teor', 'RBV', '#ea580c'],
-            ] as const).map(([titulo, chave, cor]) => (
-              <div key={chave}>
-                <h3 className="text-sm font-semibold mb-1">{titulo}</h3>
-                <LineChart width={380} height={220} data={dadosGrafico}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="teor" type="number" label={{ value: 'Teor (%)', position: 'insideBottom', offset: -4 }} />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Line dataKey={chave} stroke={cor} strokeWidth={2} dot />
-                </LineChart>
-              </div>
-            ))}
+              ['Densidade aparente × teor', 'Densidade', '#dc2626', 'densidadeAparente', 3],
+              ['Vazios (%) × teor', 'Vazios', '#2563eb', 'vazios', 2],
+              ['Estabilidade × teor', 'Estabilidade', '#059669', 'estabilidade', 0],
+              ['Fluência × teor', 'Fluência', '#7c3aed', 'fluencia', 2],
+              ['RBV (%) × teor', 'RBV', '#ea580c', 'rbv', 1],
+            ] as const).map(([titulo, chave, cor, campo, dec]) => {
+              const valorOtimo = otimoCurvas ? otimoCurvas[campo] : null
+              return (
+                <div key={chave}>
+                  <h3 className="text-sm font-semibold mb-1">{titulo}</h3>
+                  <LineChart width={380} height={220} data={dadosGrafico}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="teor" type="number" label={{ value: 'Teor (%)', position: 'insideBottom', offset: -4 }} />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    {otimoCurvas != null && valorOtimo != null && (
+                      <ReferenceLine x={otimoCurvas.teor} stroke="#334155" strokeDasharray="4 4" />
+                    )}
+                    {otimoCurvas != null && valorOtimo != null && (
+                      <ReferenceLine y={valorOtimo} stroke="#334155" strokeDasharray="4 4" />
+                    )}
+                    {otimoCurvas != null && valorOtimo != null && (
+                      <ReferenceDot x={otimoCurvas.teor} y={valorOtimo} r={4} fill={cor} stroke="#fff"
+                        label={{ value: fmt(valorOtimo, dec), position: 'top', fontSize: 11, fontWeight: 600 }} />
+                    )}
+                    <Line dataKey={chave} stroke={cor} strokeWidth={2} dot />
+                  </LineChart>
+                </div>
+              )
+            })}
           </div>
 
           <div className="flex items-center gap-4">

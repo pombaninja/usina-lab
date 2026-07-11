@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Legend, Tooltip, ReferenceArea } from 'recharts'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Legend, Tooltip, ReferenceArea, ReferenceLine, ReferenceDot } from 'recharts'
 import { supabase } from '../lib/supabase'
 import { fmt } from '../lib/formato'
 import GraficoGranulometria from '../components/GraficoGranulometria'
@@ -445,23 +445,36 @@ export default function ProjetoDocumentoPage() {
             {marshallResultado!.teorOtimoSugerido != null && ` (sugerido pelo cruzamento em 4% de vazios: ${fmt(marshallResultado!.teorOtimoSugerido, 2)}%)`}</p>
           <div className="grid grid-cols-2 gap-4">
             {([
-              ['Densidade aparente × teor', 'Densidade', '#dc2626'],
-              ['Vazios (%) × teor', 'Vazios', '#2563eb'],
-              ['Estabilidade × teor', 'Estabilidade', '#059669'],
-              ['Fluência × teor', 'Fluência', '#7c3aed'],
-              ['RBV (%) × teor', 'RBV', '#ea580c'],
-            ] as const).map(([titulo, chave, cor]) => (
-              <div key={chave} className="doc-evitar-quebra">
-                <h3 className="text-xs font-semibold mb-1">{titulo}</h3>
-                <LineChart width={320} height={190} data={dadosGraficoMarshall}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="teor" type="number" tick={{ fontSize: 11 }} label={{ value: 'Teor (%)', position: 'insideBottom', offset: -4, fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip />
-                  <Line dataKey={chave} stroke={cor} strokeWidth={2} dot />
-                </LineChart>
-              </div>
-            ))}
+              ['Densidade aparente × teor', 'Densidade', '#dc2626', 'densidadeAparente', 3],
+              ['Vazios (%) × teor', 'Vazios', '#2563eb', 'vazios', 2],
+              ['Estabilidade × teor', 'Estabilidade', '#059669', 'estabilidade', 0],
+              ['Fluência × teor', 'Fluência', '#7c3aed', 'fluencia', 2],
+              ['RBV (%) × teor', 'RBV', '#ea580c', 'rbv', 1],
+            ] as const).map(([titulo, chave, cor, campo, dec]) => {
+              const valorOtimo = resultadoTeorOtimo ? resultadoTeorOtimo[campo] : null
+              return (
+                <div key={chave} className="doc-evitar-quebra">
+                  <h3 className="text-xs font-semibold mb-1">{titulo}</h3>
+                  <LineChart width={320} height={190} data={dadosGraficoMarshall}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="teor" type="number" tick={{ fontSize: 11 }} label={{ value: 'Teor (%)', position: 'insideBottom', offset: -4, fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} />
+                    <Tooltip />
+                    {resultadoTeorOtimo != null && valorOtimo != null && (
+                      <ReferenceLine x={resultadoTeorOtimo.teor} stroke="#334155" strokeDasharray="4 4" />
+                    )}
+                    {resultadoTeorOtimo != null && valorOtimo != null && (
+                      <ReferenceLine y={valorOtimo} stroke="#334155" strokeDasharray="4 4" />
+                    )}
+                    {resultadoTeorOtimo != null && valorOtimo != null && (
+                      <ReferenceDot x={resultadoTeorOtimo.teor} y={valorOtimo} r={3} fill={cor} stroke="#fff"
+                        label={{ value: fmt(valorOtimo, dec), position: 'top', fontSize: 10, fontWeight: 600 }} />
+                    )}
+                    <Line dataKey={chave} stroke={cor} strokeWidth={2} dot />
+                  </LineChart>
+                </div>
+              )
+            })}
           </div>
 
           {/* Resultados detalhados por corpo de prova — mesmos dados (detalhes) da tela Marshall */}
