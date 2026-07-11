@@ -117,12 +117,15 @@ export default function ProjetoRtdPage() {
       const { error: errDel } = await supabase.from('projeto_rtd_cp').delete().eq('dosagem_id', dosagemId)
       if (errDel) throw new Error('Falha ao salvar o ensaio de Ruptura Diametral: ' + errDel.message)
 
+      // O retorno do insert só pode ser ordenado por colunas presentes no próprio
+      // retorno — por isso pedimos id + cp e casamos os ids pelo nº do CP.
       const { data: inseridos, error } = await supabase.from('projeto_rtd_cp')
-        .insert(salvar.map(({ id: _id, ...resto }) => resto)).select('id').order('ordem')
+        .insert(salvar.map(({ id: _id, ...resto }) => resto)).select('id, cp')
       if (error) throw new Error('Falha ao salvar o ensaio de Ruptura Diametral: ' + error.message)
 
-      // Reflete os ids atribuídos, mantendo a ordem exibida (CP = posição na lista).
-      setLinhas(preenchidos.map((r, idx) => ({ ...r, id: inseridos?.[idx]?.id })))
+      // Reflete os ids atribuídos, casando pelo nº do CP (posição na lista = cp).
+      const idPorCp = new Map((inseridos ?? []).map((r: { id: string; cp: number }) => [r.cp, r.id]))
+      setLinhas(preenchidos.map((r, idx) => ({ ...r, id: idPorCp.get(idx + 1) })))
     },
     onSuccess: () => setErro(''),
     onError: (e: Error) => setErro(e.message),
