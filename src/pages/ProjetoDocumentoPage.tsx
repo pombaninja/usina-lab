@@ -10,8 +10,9 @@ import {
   calcularGranulometriaAgregado, combinarGranulometrias,
   type PeneiraRef, type DeterminacaoAgregado, type LinhaAgregado,
 } from '../lib/calculos/agregadoGranulometria'
-import { calcularDosagemMarshall, interpolarNoTeor, type CpDosagem } from '../lib/calculos/dosagemMarshall'
+import { calcularDosagemMarshall, interpolarNoTeor, interpolarValorNoTeor, type CpDosagem } from '../lib/calculos/dosagemMarshall'
 import { gmmRice } from '../lib/calculos/teorBetume'
+import { calcularRtd } from '../lib/calculos/rtd'
 import { densidadeAgregadoGraudo, densidadeAgregadoMiudo, massaEspecificaRealMedia } from '../lib/calculos/densidades'
 import { equivalenteAreia, type DeterminacaoEA } from '../lib/calculos/equivalenteAreia'
 import { curvaViscosidade, type PontoVisc } from '../lib/calculos/viscosidadeCap'
@@ -35,6 +36,7 @@ interface MarshallCpRow {
   leitura_estabilidade: number | null; fator_correcao: number | null; altura_cm: number | null; leitura_fluencia: number | null
 }
 interface RiceTeorRow { teor: number; peso_amostra: number | null; frasco_agua: number | null; frasco_amostra_agua: number | null; fator_temp: number | null }
+interface RtdCpRow { cp: number; leitura: number | null; diametro_cm: number | null; altura_cm: number | null }
 interface DensidadeRow { tipo: string; material_nome: string | null; entradas: { determinacoes: Record<string, number>[] } }
 interface ComplementaresRow {
   ea_determinacoes: { leitura_areia: number; leitura_argila: number }[] | null; ea_resultado: number | null
@@ -103,7 +105,7 @@ export default function ProjetoDocumentoPage() {
       if (errDos) throw errDos
       const d = dosagem as unknown as DosagemRow
 
-      const [peneirasR, parametrosR, composicaoR, agregadosR, marshallR, marshallCpR, riceTeorR, densidadesR, complementaresR, indiceFormaR, viscosidadeR] = await Promise.all([
+      const [peneirasR, parametrosR, composicaoR, agregadosR, marshallR, marshallCpR, riceTeorR, rtdR, densidadesR, complementaresR, indiceFormaR, viscosidadeR] = await Promise.all([
         supabase.from('especificacao_peneiras').select('peneira, abertura_mm, passante_min, passante_max, tolerancia_trabalho')
           .eq('especificacao_id', d.especificacao_id).order('abertura_mm', { ascending: false }),
         supabase.from('especificacao_parametros').select('parametro, valor_min, valor_max, unidade').eq('especificacao_id', d.especificacao_id),
@@ -113,13 +115,14 @@ export default function ProjetoDocumentoPage() {
         supabase.from('projeto_marshall_cp').select('teor, cp, peso_ar, peso_imerso, rice_teorica, leitura_estabilidade, fator_correcao, altura_cm, leitura_fluencia')
           .eq('dosagem_id', dosagemId).order('teor').order('cp'),
         supabase.from('projeto_rice_teor').select('teor, peso_amostra, frasco_agua, frasco_amostra_agua, fator_temp').eq('dosagem_id', dosagemId).order('teor'),
+        supabase.from('projeto_rtd_cp').select('cp, leitura, diametro_cm, altura_cm').eq('dosagem_id', dosagemId).order('ordem').order('cp'),
         supabase.from('projeto_densidades').select('tipo, material_nome, entradas').eq('dosagem_id', dosagemId).order('ordem'),
         supabase.from('projeto_complementares').select('ea_determinacoes, ea_resultado, adesividade, adesividade_obs, durabilidade_sulfato').eq('dosagem_id', dosagemId).maybeSingle(),
         supabase.from('projeto_indice_forma').select('material_nome, media_il, pct_lamelar, graos').eq('dosagem_id', dosagemId).maybeSingle(),
         supabase.from('projeto_viscosidade').select('material, pontos, faixas, ponto_fulgor, ponto_amolecimento, penetracao, temp_usinagem_min, temp_usinagem_max, temp_compactacao_min, temp_compactacao_max')
           .eq('dosagem_id', dosagemId).maybeSingle(),
       ])
-      for (const r of [peneirasR, parametrosR, composicaoR, agregadosR, marshallR, marshallCpR, riceTeorR, densidadesR, complementaresR, indiceFormaR, viscosidadeR]) {
+      for (const r of [peneirasR, parametrosR, composicaoR, agregadosR, marshallR, marshallCpR, riceTeorR, rtdR, densidadesR, complementaresR, indiceFormaR, viscosidadeR]) {
         if (r.error) throw r.error
       }
 
@@ -132,6 +135,7 @@ export default function ProjetoDocumentoPage() {
         marshall: marshallR.data as MarshallParamsRow | null,
         marshallCps: (marshallCpR.data ?? []) as MarshallCpRow[],
         riceTeor: (riceTeorR.data ?? []) as RiceTeorRow[],
+        rtd: (rtdR.data ?? []) as RtdCpRow[],
         densidades: (densidadesR.data ?? []) as DensidadeRow[],
         complementares: complementaresR.data as ComplementaresRow | null,
         indiceForma: indiceFormaR.data as IndiceFormaRow | null,
@@ -199,6 +203,30 @@ export default function ProjetoDocumentoPage() {
       }
       return { ...r, dmt }
     })
+  }, [data])
+  // Curva DMT × teor + cruzamento no teor ótimo de projeto (mesmo idioma das curvas Marshall).
+  const pontosGraficoRice = useMemo(() =>
+    riceTeorRows.filter(r => r.dmt != null).map(r => ({ teor: Number(r.teor), DMT: r.dmt! })).sort((a, b) => a.teor - b.teor),
+  [riceTeorRows])
+  const dmtNoOtimoRice = useMemo(() => {
+    const teorOtimo = data?.dosagem.teor_otimo
+    if (teorOtimo == null || pontosGraficoRice.length < 2) return null
+    return interpolarValorNoTeor(pontosGraficoRice.map(p => ({ teor: p.teor, valor: p.DMT })), teorOtimo)
+  }, [data, pontosGraficoRice])
+
+  // ===== Ruptura Diametral (RTD) do projeto — reaproveita calcularRtd, constante de projeto_marshall =====
+  const rtdCalc = useMemo(() => {
+    if (!data?.rtd.length) return null
+    const constante = data.marshall?.constante_prensa ?? null
+    const linhas = data.rtd.map(r => {
+      let rtdMpa: number | null = null
+      if (constante != null && r.leitura != null && r.diametro_cm != null && r.altura_cm != null && r.diametro_cm > 0 && r.altura_cm > 0) {
+        try { rtdMpa = calcularRtd([{ leitura: r.leitura, constantePrensa: constante, diametroCm: r.diametro_cm, alturaCm: r.altura_cm }]).rtdMpa[0] } catch { rtdMpa = null }
+      }
+      return { ...r, rtdMpa }
+    })
+    const validos = linhas.map(l => l.rtdMpa).filter((v): v is number => v != null)
+    return { constante, linhas, media: validos.length ? validos.reduce((a, b) => a + b, 0) / validos.length : null }
   }, [data])
 
   // ===== Densidades (reaproveita densidades.ts) =====
@@ -330,25 +358,65 @@ export default function ProjetoDocumentoPage() {
         <Link to="/dosagens" className="border rounded px-4 py-2 text-slate-700">Voltar aos projetos</Link>
       </div>
 
-      {/* ===== 1. Capa ===== */}
-      <header className="border-b-4 border-slate-800 pb-4 mb-6 doc-evitar-quebra">
-        <p className="text-xs uppercase tracking-widest text-slate-500 mb-6">Documento do Projeto</p>
-        <h1 className="text-2xl font-bold">{d.empresas?.razao_social ?? '—'}</h1>
-        <p className="text-slate-600">{d.empresas?.cabecalho ?? 'Controle Tecnológico de Misturas Betuminosas'}</p>
-        {d.empresas?.cnpj && <p className="text-slate-500 text-xs mb-4">CNPJ: {d.empresas.cnpj}</p>}
+      {/* ===== 1. Capa (página inteira; tudo que vem depois começa na página 2) ===== */}
+      <header className="mb-6 min-h-[248mm] flex flex-col doc-evitar-quebra">
+        {/* Topo: identificação da empresa */}
+        <div className="border-b-4 border-slate-800 pb-4">
+          <h1 className="text-3xl font-bold text-slate-900">{d.empresas?.razao_social ?? '—'}</h1>
+          <p className="text-slate-600 mt-1">{d.empresas?.cabecalho ?? 'Controle Tecnológico de Misturas Betuminosas'}</p>
+          {d.empresas?.cnpj && <p className="text-slate-500 text-xs mt-1">CNPJ: {d.empresas.cnpj}</p>}
+        </div>
 
-        <div className="mt-8 grid grid-cols-2 gap-y-2 gap-x-8 text-base">
-          <p><b>Projeto:</b> {d.nome}</p>
-          <p><b>Tipo:</b> {CONTEXTO_LABEL[d.contexto ?? ''] ?? '—'} · {TIPO_LABEL[d.tipo ?? ''] ?? d.tipo ?? '—'}</p>
-          <p><b>Especificação:</b> {d.especificacoes?.nome ?? '—'}</p>
-          <p><b>Norma:</b> {d.especificacoes?.norma ?? '—'}</p>
-          <p><b>Revisão:</b> Rev. {d.revisao ?? 0}</p>
-          <p><b>Documento gerado em:</b> {new Date().toLocaleDateString('pt-BR')}</p>
+        {/* Centro: título do projeto + resultado-chave */}
+        <div className="flex-1 flex flex-col items-center justify-center text-center py-12">
+          <p className="text-xs uppercase tracking-[0.35em] text-slate-500 mb-4">Projeto de Dosagem</p>
+          <h2 className="text-4xl font-bold text-slate-900 leading-tight">{d.nome}</h2>
+          <p className="text-slate-600 mt-3 text-base">
+            {CONTEXTO_LABEL[d.contexto ?? ''] ?? '—'} · {TIPO_LABEL[d.tipo ?? ''] ?? d.tipo ?? '—'}
+          </p>
+          <p className="text-slate-600 text-sm mt-1">
+            Especificação: {d.especificacoes?.nome ?? '—'} · Norma: {d.especificacoes?.norma ?? '—'}
+          </p>
+
+          <div className="border-2 border-slate-800 rounded-lg px-12 py-6 mt-10 doc-evitar-quebra">
+            <p className="text-xs uppercase tracking-widest text-slate-500">Teor ótimo de projeto</p>
+            <p className="text-3xl font-bold text-slate-900 mt-1">
+              {d.teor_otimo != null ? `${fmt(d.teor_otimo, 2)} %` : '—'}
+            </p>
+            {(d.dens_max_teorica_projeto != null || d.densidade_aparente_projeto != null || resultadoTeorOtimo != null) && (
+              <div className="flex justify-center gap-10 mt-5 pt-4 border-t border-slate-300 text-sm">
+                {d.dens_max_teorica_projeto != null && (
+                  <div>
+                    <span className="block text-xs uppercase tracking-wider text-slate-500">DMT (Rice)</span>
+                    <b>{fmt(d.dens_max_teorica_projeto, 3)} g/cm³</b>
+                  </div>
+                )}
+                {(d.densidade_aparente_projeto ?? resultadoTeorOtimo?.densidadeAparente) != null && (
+                  <div>
+                    <span className="block text-xs uppercase tracking-wider text-slate-500">Densidade aparente</span>
+                    <b>{fmt(d.densidade_aparente_projeto ?? resultadoTeorOtimo!.densidadeAparente, 3)} g/cm³</b>
+                  </div>
+                )}
+                {resultadoTeorOtimo != null && (
+                  <div>
+                    <span className="block text-xs uppercase tracking-wider text-slate-500">Estabilidade</span>
+                    <b>{fmt(resultadoTeorOtimo.estabilidade, 0)} kgf</b>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Rodapé da capa */}
+        <div className="border-t border-slate-300 pt-3 flex items-center justify-between text-xs text-slate-500">
+          <span>Revisão Rev. {d.revisao ?? 0} · Documento gerado em {new Date().toLocaleDateString('pt-BR')}</span>
+          <span className="uppercase tracking-widest">usina-lab · Controle Tecnológico</span>
         </div>
       </header>
 
-      {/* ===== 2. Resumo do projeto ===== */}
-      <section className="mb-6">
+      {/* ===== 2. Resumo do projeto (inicia na página 2) ===== */}
+      <section className="mb-6 doc-pagina">
         <h2 className="text-lg font-bold border-b-2 border-slate-800 mb-3">Resumo do projeto</h2>
 
         {/* 2a. Composição */}
@@ -615,6 +683,64 @@ export default function ProjetoDocumentoPage() {
                 <td className="border p-1 text-center font-semibold">{r.dmt != null ? fmt(r.dmt, 3) : '—'}</td>
               </tr>
             ))}</tbody>
+          </table>
+          {pontosGraficoRice.length > 0 && (
+            <div className="mt-3 doc-evitar-quebra">
+              <h3 className="text-xs font-semibold mb-1">Densidade máxima (DMT) × Teor</h3>
+              <LineChart width={480} height={220} data={pontosGraficoRice}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="teor" type="number" domain={['dataMin', 'dataMax']} tick={{ fontSize: 11 }} label={{ value: 'Teor (%)', position: 'insideBottom', offset: -4, fontSize: 11 }} />
+                <YAxis domain={['auto', 'auto']} tick={{ fontSize: 11 }} tickFormatter={(v: number) => fmt(v, 3)} width={64} />
+                <Tooltip />
+                {dmtNoOtimoRice != null && (
+                  <ReferenceLine x={d.teor_otimo!} stroke="#334155" strokeDasharray="4 4" />
+                )}
+                {dmtNoOtimoRice != null && (
+                  <ReferenceLine y={dmtNoOtimoRice} stroke="#334155" strokeDasharray="4 4" />
+                )}
+                {dmtNoOtimoRice != null && (
+                  <ReferenceDot x={d.teor_otimo!} y={dmtNoOtimoRice} r={3} fill="#65a30d" stroke="#fff"
+                    label={{ value: fmt(dmtNoOtimoRice, 3), position: 'top', fontSize: 10, fontWeight: 600 }} />
+                )}
+                <Line dataKey="DMT" stroke="#65a30d" strokeWidth={2} dot />
+              </LineChart>
+              {dmtNoOtimoRice != null && (
+                <p className="text-xs text-slate-600">DMT interpolada no teor ótimo ({fmt(d.teor_otimo, 2)}%): <b>{fmt(dmtNoOtimoRice, 3)}</b></p>
+              )}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* ===== 3c. Ruptura Diametral (RTD) ===== */}
+      {rtdCalc && (
+        <section className="mb-6 doc-evitar-quebra">
+          <h2 className="text-lg font-bold border-b-2 border-slate-800 mb-3">Ruptura Diametral (RTD)</h2>
+          <p className="mb-2 text-xs text-slate-600">
+            Constante da prensa (Dosagem Marshall): {rtdCalc.constante != null ? fmt(rtdCalc.constante, 4) : '—'}
+            {' '}· RTD = 2·carga/(π·D·H), carga = leitura × constante, em MPa.
+          </p>
+          <table className="w-full border">
+            <thead><tr className="bg-slate-100">
+              <th className="border p-1">CP</th><th className="border p-1">Leitura</th>
+              <th className="border p-1">Diâmetro (cm)</th><th className="border p-1">Altura (cm)</th>
+              <th className="border p-1">RTD (MPa)</th>
+            </tr></thead>
+            <tbody>
+              {rtdCalc.linhas.map((r, i) => (
+                <tr key={i}>
+                  <td className="border p-1 text-center font-semibold">{r.cp}</td>
+                  <td className="border p-1 text-center">{r.leitura != null ? fmt(r.leitura, 1) : '—'}</td>
+                  <td className="border p-1 text-center">{r.diametro_cm != null ? fmt(r.diametro_cm, 2) : '—'}</td>
+                  <td className="border p-1 text-center">{r.altura_cm != null ? fmt(r.altura_cm, 2) : '—'}</td>
+                  <td className="border p-1 text-center font-semibold">{r.rtdMpa != null ? fmt(r.rtdMpa, 2) : '—'}</td>
+                </tr>
+              ))}
+              <tr className="bg-slate-50 font-semibold">
+                <td className="border p-1 text-center" colSpan={4}>Média</td>
+                <td className="border p-1 text-center">{rtdCalc.media != null ? `${fmt(rtdCalc.media, 2)} MPa` : '—'}</td>
+              </tr>
+            </tbody>
           </table>
         </section>
       )}
