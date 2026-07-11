@@ -310,6 +310,11 @@ export default function ProjetoDocumentoPage() {
       if (typeof v === 'number' && Number.isFinite(v)) valores[k] = v
     }
     if (d.teor_otimo != null && Number.isFinite(d.teor_otimo)) valores.teor_ligante = d.teor_otimo
+    // RTD: quando a característica ainda não foi salva no projeto, usa a média
+    // calculada do ensaio de Ruptura Diametral — o resumo/PDF sempre mostra o resultado.
+    if (valores.rtd === undefined && rtdCalc?.media != null && Number.isFinite(rtdCalc.media)) {
+      valores.rtd = Number(rtdCalc.media.toFixed(2))
+    }
 
     const aval = avaliarParametros(valores, data.parametros)
     const avalMap = new Map(aval.avaliacoes.map(a => [a.parametro, a]))
@@ -333,7 +338,7 @@ export default function ProjetoDocumentoPage() {
       })
     }
     return linhas
-  }, [data])
+  }, [data, rtdCalc])
 
   if (!data) return <p>Carregando…</p>
   const d = data.dosagem
