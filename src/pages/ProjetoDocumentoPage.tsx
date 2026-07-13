@@ -5,15 +5,17 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Legend, Tooltip, Referenc
 import { supabase } from '../lib/supabase'
 import { fmt } from '../lib/formato'
 import GraficoGranulometria from '../components/GraficoGranulometria'
-import { calcularGranulometria, type PeneiraLeitura, type FaixaPeneira } from '../lib/calculos/granulometria'
+import { calcularGranulometria, normalizarPeneira, type PeneiraLeitura, type FaixaPeneira } from '../lib/calculos/granulometria'
 import {
   calcularGranulometriaAgregado, combinarGranulometrias,
   type PeneiraRef, type DeterminacaoAgregado, type LinhaAgregado,
 } from '../lib/calculos/agregadoGranulometria'
+import { calcularPesosMoldagem, type MoldagemTeor } from '../lib/calculos/pesosMoldagem'
 import { calcularDosagemMarshall, interpolarNoTeor, interpolarValorNoTeor, type CpDosagem } from '../lib/calculos/dosagemMarshall'
 import { gmmRice } from '../lib/calculos/teorBetume'
 import { calcularRtd } from '../lib/calculos/rtd'
-import { densidadeAgregadoGraudo, densidadeAgregadoMiudo, massaEspecificaRealMedia } from '../lib/calculos/densidades'
+import { densidadeAgregadoGraudo, densidadeAgregadoMiudo, massaEspecificaRealMedia, type DensidadeGraudo } from '../lib/calculos/densidades'
+import { indiceLamelaridade } from '../lib/calculos/indiceForma'
 import { equivalenteAreia, type DeterminacaoEA } from '../lib/calculos/equivalenteAreia'
 import { curvaViscosidade, type PontoVisc } from '../lib/calculos/viscosidadeCap'
 import { avaliarParametros, type ParametroEspec } from '../lib/calculos/avaliacao'
@@ -29,7 +31,7 @@ interface DosagemRow {
   especificacoes: { nome: string; norma: string | null; tipo_mistura: string | null } | null
 }
 interface ComposicaoRow { origem: string | null; material_nome: string | null; local: string | null; percentual: number; densidade: number | null }
-interface AgregadoRow { material_nome: string; origem: string | null; data: string | null; peneiras: PeneiraRef[]; determinacoes: DeterminacaoAgregado[] }
+interface AgregadoRow { material_nome: string; origem: string | null; data: string | null; peneiras: PeneiraRef[]; determinacoes: DeterminacaoAgregado[]; pct_na_mistura: number | null }
 interface MarshallParamsRow { densidade_real_cap: number; constante_prensa: number; correcao_fluencia: number | null }
 interface MarshallCpRow {
   teor: number; cp: number; peso_ar: number | null; peso_imerso: number | null; rice_teorica: number | null
@@ -110,7 +112,7 @@ export default function ProjetoDocumentoPage() {
           .eq('especificacao_id', d.especificacao_id).order('abertura_mm', { ascending: false }),
         supabase.from('especificacao_parametros').select('parametro, valor_min, valor_max, unidade').eq('especificacao_id', d.especificacao_id),
         supabase.from('dosagem_composicao').select('origem, material_nome, local, percentual, densidade').eq('dosagem_id', dosagemId),
-        supabase.from('agregado_granulometria').select('material_nome, origem, data, peneiras, determinacoes').eq('dosagem_id', dosagemId).order('ordem'),
+        supabase.from('agregado_granulometria').select('material_nome, origem, data, peneiras, determinacoes, pct_na_mistura').eq('dosagem_id', dosagemId).order('ordem'),
         supabase.from('projeto_marshall').select('densidade_real_cap, constante_prensa, correcao_fluencia').eq('dosagem_id', dosagemId).maybeSingle(),
         supabase.from('projeto_marshall_cp').select('teor, cp, peso_ar, peso_imerso, rice_teorica, leitura_estabilidade, fator_correcao, altura_cm, leitura_fluencia')
           .eq('dosagem_id', dosagemId).order('teor').order('cp'),
@@ -144,31 +146,56 @@ export default function ProjetoDocumentoPage() {
     },
   })
 
-  // ===== Granulometria combinada (reaproveita agregadoGranulometria.ts + granulometria.ts) =====
-  const granulometria = useMemo(() => {
-    if (!data) return null
-    const entradas: { pctNaMistura: number; linhas: LinhaAgregado[] }[] = []
-    for (const a of data.agregados) {
+  // ===== Granulometria individual por agregado (mesma calcularGranulometriaAgregado da tela Agregados) =====
+  const agregadosDetalhe = useMemo(() => {
+    if (!data) return []
+    return data.agregados.map(a => {
+      // % na mistura: fonte primária é a persistida no próprio agregado (pct_na_mistura,
+      // como nas telas Agregados/Moldagem); a composição da dosagem fica como reserva.
       const match = data.composicao.find(c => (c.material_nome ?? '').trim().toLowerCase() === a.material_nome.trim().toLowerCase())
-      if (!match || !a.determinacoes?.length) continue
-      try {
-        entradas.push({ pctNaMistura: match.percentual, linhas: calcularGranulometriaAgregado(a.peneiras, a.determinacoes) })
-      } catch { /* ignora agregado com dados inconsistentes */ }
-    }
+      const pct = a.pct_na_mistura ?? match?.percentual ?? null
+      let linhas: LinhaAgregado[] | null = null
+      if (a.determinacoes?.length) {
+        try { linhas = calcularGranulometriaAgregado(a.peneiras ?? [], a.determinacoes) } catch { linhas = null }
+      }
+      return { row: a, pct, linhas }
+    })
+  }, [data])
+
+  // ===== % passa combinada bruta — base da granulometria combinada e dos pesos de moldagem =====
+  const combinadaBruta = useMemo(() => {
+    const entradas = agregadosDetalhe
+      .filter(a => a.linhas && a.pct != null && Number.isFinite(a.pct))
+      .map(a => ({ pctNaMistura: a.pct!, linhas: a.linhas! }))
     if (!entradas.length) return null
     const combinada = combinarGranulometrias(entradas)
-    if (!combinada.length) return null
+    return combinada.length ? combinada : null
+  }, [agregadosDetalhe])
+
+  // ===== Granulometria combinada (reaproveita agregadoGranulometria.ts + granulometria.ts) =====
+  const granulometria = useMemo(() => {
+    if (!data || !combinadaBruta) return null
     // Reaproveita calcularGranulometria (golden) passando a % passa combinada como se fosse
     // um retido acumulado de uma amostra de 100g — assim a mesma fórmula de faixa de
     // trabalho/especificação usada nos ensaios (granulometria.ts) é reutilizada aqui, sem duplicar lógica.
-    const leituras: PeneiraLeitura[] = combinada.map(l => ({ peneira: l.peneira, aberturaMm: l.aberturaMm, retidoAcum: 100 - l.pctPassa }))
+    const leituras: PeneiraLeitura[] = combinadaBruta.map(l => ({ peneira: l.peneira, aberturaMm: l.aberturaMm, retidoAcum: 100 - l.pctPassa }))
     const faixa: FaixaPeneira[] = data.peneiras.map(p => ({
       peneira: p.peneira, passanteMin: p.passante_min, passanteMax: p.passante_max, toleranciaTrabalho: p.tolerancia_trabalho ?? 0,
     }))
     try {
       return calcularGranulometria(100, leituras, faixa, data.dosagem.curva_projeto ?? undefined)
     } catch { return null }
-  }, [data])
+  }, [data, combinadaBruta])
+
+  // ===== Pesos de moldagem (reaproveita pesosMoldagem.ts) =====
+  // Peso total por CP e teores não são persistidos (ver tela Moldagem): usa o padrão
+  // de 1200 g/CP da tela e os teores efetivamente moldados nos CPs Marshall.
+  const pesosMoldagem = useMemo((): MoldagemTeor[] | null => {
+    if (!combinadaBruta || !data?.marshallCps.length) return null
+    const teores = [...new Set(data.marshallCps.map(c => c.teor))].sort((a, b) => a - b)
+    if (!teores.length) return null
+    try { return calcularPesosMoldagem(combinadaBruta, 1200, teores) } catch { return null }
+  }, [combinadaBruta, data])
 
   // ===== Dosagem Marshall (reaproveita dosagemMarshall.ts) =====
   const marshallResultado = useMemo(() => {
@@ -235,36 +262,43 @@ export default function ProjetoDocumentoPage() {
     const graudos = data.densidades.filter(d => d.tipo === 'agregado_graudo')
     const miudos = data.densidades.filter(d => d.tipo === 'agregado_miudo')
     const graudosCalc = graudos.map(g => {
-      const reais = g.entradas.determinacoes.map(det => {
-        try { return densidadeAgregadoGraudo(det.pesoArSeco, det.pesoSaturado, det.pesoImerso) } catch { return null }
+      // Leituras cruas de cada determinação (A/B/C) + resultado por determinação — mesma tela Densidades.
+      const dets = (g.entradas?.determinacoes ?? []).map(det => {
+        let calc: DensidadeGraudo | null = null
+        try { calc = densidadeAgregadoGraudo(det.pesoArSeco, det.pesoSaturado, det.pesoImerso) } catch { calc = null }
+        return { det, calc }
       })
       return {
         materialNome: g.material_nome ?? '(sem nome)',
-        real: media(reais.map(r => r?.real ?? null)),
-        aparente: media(reais.map(r => r?.aparente ?? null)),
-        absorcao: media(reais.map(r => r?.absorcao ?? null)),
+        dets,
+        real: media(dets.map(d => d.calc?.real ?? null)),
+        aparente: media(dets.map(d => d.calc?.aparente ?? null)),
+        absorcao: media(dets.map(d => d.calc?.absorcao ?? null)),
       }
     })
     const miudosCalc = miudos.map(m => {
-      const reais = m.entradas.determinacoes.map(det => {
-        try { return densidadeAgregadoMiudo(det.pesoPicnometro, det.pesoPicAgregado, det.pesoPicAgua, det.pesoPicAgregadoAgua, det.fatorCorrecaoTemp ?? 1) } catch { return null }
+      const dets = (m.entradas?.determinacoes ?? []).map(det => {
+        let real: number | null = null
+        try { real = densidadeAgregadoMiudo(det.pesoPicnometro, det.pesoPicAgregado, det.pesoPicAgua, det.pesoPicAgregadoAgua, det.fatorCorrecaoTemp ?? 1) } catch { real = null }
+        return { det, real }
       })
-      return { materialNome: m.material_nome ?? '(sem nome)', real: media(reais) }
+      return { materialNome: m.material_nome ?? '(sem nome)', dets, real: media(dets.map(d => d.real)) }
     })
     const densidadesPorMaterial = new Map<string, number>()
     for (const g of graudosCalc) if (g.real !== null) densidadesPorMaterial.set(g.materialNome.trim().toLowerCase(), g.real)
     for (const m of miudosCalc) if (m.real !== null) densidadesPorMaterial.set(m.materialNome.trim().toLowerCase(), m.real)
 
+    // Linhas do MERM (material × % na mistura × densidade real) — mesma tabela da tela Densidades.
+    const linhasMerm = data.composicao.map(c => ({
+      materialNome: (c.material_nome ?? '').trim() || '(sem nome)',
+      pct: c.percentual,
+      densidadeReal: densidadesPorMaterial.get((c.material_nome ?? '').trim().toLowerCase()) ?? null,
+    }))
     let merm: number | null = null
-    if (data.composicao.length) {
-      const linhas = data.composicao.map(c => ({
-        pct: c.percentual, densidadeReal: densidadesPorMaterial.get((c.material_nome ?? '').trim().toLowerCase()) ?? null,
-      }))
-      if (linhas.every(l => l.densidadeReal !== null)) {
-        try { merm = massaEspecificaRealMedia(linhas.map(l => ({ pct: l.pct, densidadeReal: l.densidadeReal! }))) } catch { merm = null }
-      }
+    if (linhasMerm.length && linhasMerm.every(l => l.densidadeReal !== null)) {
+      try { merm = massaEspecificaRealMedia(linhasMerm.map(l => ({ pct: l.pct, densidadeReal: l.densidadeReal! }))) } catch { merm = null }
     }
-    return { graudosCalc, miudosCalc, merm }
+    return { graudosCalc, miudosCalc, linhasMerm, merm }
   }, [data])
 
   // ===== Equivalente de areia (reaproveita equivalenteAreia.ts, se necessário recalcular) =====
@@ -276,6 +310,31 @@ export default function ProjetoDocumentoPage() {
     try {
       return equivalenteAreia(dets.map((d): DeterminacaoEA => ({ leituraAreia: d.leitura_areia, leituraArgila: d.leitura_argila })))
     } catch { return null }
+  }, [data])
+  // EA por determinação (mesma equivalenteAreia da tela Complementares, aplicada a cada leitura).
+  const eaDetalhes = useMemo(() => {
+    const dets = data?.complementares?.ea_determinacoes
+    if (!dets?.length) return null
+    return dets.map(d => {
+      let ea: number | null = null
+      try { ea = equivalenteAreia([{ leituraAreia: d.leitura_areia, leituraArgila: d.leitura_argila }]) } catch { ea = null }
+      return { ...d, ea }
+    })
+  }, [data])
+
+  // ===== Índice de forma — IL por grão + resumo (reaproveita indiceLamelaridade) =====
+  const indiceFormaCalc = useMemo(() => {
+    const graos = data?.indiceForma?.graos
+    if (!graos?.length) return null
+    const linhas = graos.map(g => {
+      try {
+        const r = indiceLamelaridade([g])
+        return { ...g, il: r.mediaIL as number | null, lamelar: (r.lamelares > 0) as boolean | null }
+      } catch { return { ...g, il: null, lamelar: null } }
+    })
+    let resumo: ReturnType<typeof indiceLamelaridade> | null = null
+    try { resumo = indiceLamelaridade(graos) } catch { resumo = null }
+    return { linhas, resumo }
   }, [data])
 
   // ===== Viscosidade do CAP (reaproveita viscosidadeCap.ts para o gráfico) =====
@@ -453,17 +512,28 @@ export default function ProjetoDocumentoPage() {
             <table className="w-full border mb-3 doc-evitar-quebra">
               <thead><tr className="bg-slate-100">
                 <th className="border p-1">Peneira</th><th className="border p-1">mm</th><th className="border p-1">% passa combinada</th>
-                <th className="border p-1">Faixa de trabalho</th><th className="border p-1">Especificada</th>
+                <th className="border p-1">Faixa de trabalho</th><th className="border p-1">Especificada</th><th className="border p-1">Situação</th>
               </tr></thead>
-              <tbody>{granulometriaLinhas.map(l => (
-                <tr key={l.peneira}>
-                  <td className="border p-1 text-center">{l.peneira}</td>
-                  <td className="border p-1 text-center">{l.aberturaMm}</td>
-                  <td className="border p-1 text-center font-semibold">{fmt(l.pctPassando, 1)}</td>
-                  <td className="border p-1 text-center">{l.trabMin !== undefined ? `${fmt(l.trabMin, 1)} – ${fmt(l.trabMax, 1)}` : '—'}</td>
-                  <td className="border p-1 text-center">{l.espMin !== undefined ? `${l.espMin} – ${l.espMax}` : '—'}</td>
-                </tr>
-              ))}</tbody>
+              <tbody>{granulometriaLinhas.map(l => {
+                // Situação frente à norma (% passante mín/máx) — mesmo critério da tela Agregados.
+                const conformeNorma = l.espMin !== undefined && l.espMax !== undefined
+                  ? l.pctPassando >= l.espMin - 1e-9 && l.pctPassando <= l.espMax + 1e-9
+                  : null
+                return (
+                  <tr key={l.peneira}>
+                    <td className="border p-1 text-center">{l.peneira}</td>
+                    <td className="border p-1 text-center">{l.aberturaMm}</td>
+                    <td className="border p-1 text-center font-semibold">{fmt(l.pctPassando, 1)}</td>
+                    <td className="border p-1 text-center">{l.trabMin !== undefined ? `${fmt(l.trabMin, 1)} – ${fmt(l.trabMax, 1)}` : '—'}</td>
+                    <td className="border p-1 text-center">{l.espMin !== undefined ? `${l.espMin} – ${l.espMax}` : '—'}</td>
+                    <td className="border p-1 text-center">
+                      {conformeNorma === null ? '—' : conformeNorma
+                        ? <span className="text-green-700 font-semibold">Conforme</span>
+                        : <span className="text-red-700 font-semibold">Fora da faixa</span>}
+                    </td>
+                  </tr>
+                )
+              })}</tbody>
             </table>
             <GraficoGranulometria linhas={granulometriaLinhas} largura={680} />
           </div>
@@ -489,6 +559,89 @@ export default function ProjetoDocumentoPage() {
           </table>
         )}
       </section>
+
+      {/* ===== 2d. Granulometria individual dos agregados — leituras e cálculos por determinação ===== */}
+      {agregadosDetalhe.some(a => a.linhas) && (
+        <section className="mb-6 doc-pagina">
+          <h2 className="text-lg font-bold border-b-2 border-slate-800 mb-3">Granulometria dos agregados — resultados analíticos</h2>
+          {agregadosDetalhe.filter(a => a.linhas).map((a, iAg) => (
+            <div key={iAg} className="mb-4 doc-evitar-quebra">
+              <h3 className="font-semibold text-xs mb-0.5">
+                {a.row.material_nome}
+                {a.row.origem && ` — ${a.row.origem}`}
+                {a.row.data && ` · ${new Date(a.row.data + 'T00:00:00').toLocaleDateString('pt-BR')}`}
+                {a.pct != null && ` · ${fmt(a.pct, 2)}% na mistura`}
+              </h3>
+              <p className="text-[8px] text-slate-600 mb-1">
+                {a.row.determinacoes.map((det, j) => `Det. ${j + 1} — peso total: ${fmt(det.pesoTotal, 1)} g`).join(' · ')}
+              </p>
+              <table className="w-full border-collapse text-[9px] leading-tight">
+                <thead><tr className="bg-slate-100 text-center">
+                  <th className="border p-0.5">Peneira</th><th className="border p-0.5">Abertura (mm)</th>
+                  {a.row.determinacoes.map((_, j) => (
+                    <th key={j} className="border p-0.5">Retido acum. det. {j + 1} (g)</th>
+                  ))}
+                  <th className="border p-0.5">Retido médio (g)</th><th className="border p-0.5">% retida</th><th className="border p-0.5">% passa média</th>
+                </tr></thead>
+                <tbody>{a.linhas!.map(l => (
+                  <tr key={l.peneira} className="text-center">
+                    <td className="border p-0.5 font-semibold">{l.peneira}</td>
+                    <td className="border p-0.5">{fmt(l.aberturaMm, 3)}</td>
+                    {a.row.determinacoes.map((det, j) => {
+                      const retido = Object.entries(det.retidos ?? {})
+                        .find(([k]) => normalizarPeneira(k) === normalizarPeneira(l.peneira))?.[1]
+                      return <td key={j} className="border p-0.5">{retido != null ? fmt(retido, 1) : '—'}</td>
+                    })}
+                    <td className="border p-0.5">{fmt(l.retidoMedio, 1)}</td>
+                    <td className="border p-0.5">{fmt(l.pctRetida, 2)}</td>
+                    <td className="border p-0.5 font-semibold">{fmt(l.pctPassa, 2)}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          ))}
+        </section>
+      )}
+
+      {/* ===== 2e. Pesos de moldagem por teor — mesma calcularPesosMoldagem da tela Moldagem ===== */}
+      {!!pesosMoldagem?.length && (
+        <section className="mb-6 doc-pagina">
+          <h2 className="text-lg font-bold border-b-2 border-slate-800 mb-3">Pesos de moldagem</h2>
+          <p className="text-xs text-slate-600 mb-3">
+            Peso total por corpo de prova: <b>{fmt(pesosMoldagem[0].pesoTotal, 0)} g</b> (padrão da tela de moldagem) ·
+            teores conforme os corpos de prova moldados na dosagem Marshall · granulometria combinada calculada dos agregados.
+          </p>
+          <div className="grid grid-cols-2 gap-4">
+            {pesosMoldagem.map(res => (
+              <div key={res.teor} className="doc-evitar-quebra">
+                <h3 className="font-semibold text-xs mb-1">Teor {fmt(res.teor, 1)}% — peso total {fmt(res.pesoTotal, 0)} g</h3>
+                <table className="w-full border-collapse text-[9px] leading-tight">
+                  <thead><tr className="bg-slate-100 text-center">
+                    <th className="border p-0.5">Peneira</th><th className="border p-0.5">% ret. passante</th>
+                    <th className="border p-0.5">Peso individual (g)</th><th className="border p-0.5">Peso acumulado (g)</th>
+                  </tr></thead>
+                  <tbody>
+                    {res.linhas.map(l => (
+                      <tr key={l.peneira} className="text-center">
+                        <td className="border p-0.5 font-semibold">{l.peneira}</td>
+                        <td className="border p-0.5">{fmt(l.pctRetPassante * 100, 2)}%</td>
+                        <td className="border p-0.5">{fmt(l.pesoIndividual, 1)}</td>
+                        <td className="border p-0.5">{fmt(l.pesoAcumulado, 1)}</td>
+                      </tr>
+                    ))}
+                    <tr className="text-center bg-slate-50 font-semibold">
+                      <td className="border p-0.5">CAP</td>
+                      <td className="border p-0.5">—</td>
+                      <td className="border p-0.5">{fmt(res.pesoCap, 1)}</td>
+                      <td className="border p-0.5">{fmt(res.linhas[res.linhas.length - 1].pesoAcumulado + res.pesoCap, 1)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* ===== 3. Dosagem Marshall ===== */}
       {temMarshall && (
@@ -768,6 +921,38 @@ export default function ProjetoDocumentoPage() {
                   </tr>
                 ))}</tbody>
               </table>
+              {/* Leituras cruas por determinação (A/B/C), como na tela Densidades */}
+              {densidadesCalc!.graudosCalc.filter(g => g.dets.length > 0).map((g, i) => (
+                <div key={i} className="mb-3 doc-evitar-quebra">
+                  <h4 className="font-semibold text-xs mb-1">{g.materialNome} — determinações (A = ar seco · B = saturado sup. seca · C = imerso, g)</h4>
+                  <table className="w-full border-collapse text-[9px] leading-tight">
+                    <thead><tr className="bg-slate-100 text-center">
+                      <th className="border p-0.5">Det.</th><th className="border p-0.5">A (g)</th><th className="border p-0.5">B (g)</th><th className="border p-0.5">C (g)</th>
+                      <th className="border p-0.5">Real</th><th className="border p-0.5">Aparente</th><th className="border p-0.5">Absorção (%)</th>
+                    </tr></thead>
+                    <tbody>
+                      {g.dets.map((d, iDet) => (
+                        <tr key={iDet} className="text-center">
+                          <td className="border p-0.5 font-semibold">{iDet + 1}</td>
+                          <td className="border p-0.5">{d.det.pesoArSeco != null ? fmt(d.det.pesoArSeco, 1) : '—'}</td>
+                          <td className="border p-0.5">{d.det.pesoSaturado != null ? fmt(d.det.pesoSaturado, 1) : '—'}</td>
+                          <td className="border p-0.5">{d.det.pesoImerso != null ? fmt(d.det.pesoImerso, 1) : '—'}</td>
+                          <td className="border p-0.5">{d.calc ? fmt(d.calc.real, 3) : '—'}</td>
+                          <td className="border p-0.5">{d.calc ? fmt(d.calc.aparente, 3) : '—'}</td>
+                          <td className="border p-0.5">{d.calc ? fmt(d.calc.absorcao, 3) : '—'}</td>
+                        </tr>
+                      ))}
+                      <tr className="text-center bg-slate-50 font-semibold">
+                        <td className="border p-0.5">Média</td>
+                        <td className="border p-0.5">—</td><td className="border p-0.5">—</td><td className="border p-0.5">—</td>
+                        <td className="border p-0.5">{fmt(g.real, 3)}</td>
+                        <td className="border p-0.5">{fmt(g.aparente, 3)}</td>
+                        <td className="border p-0.5">{fmt(g.absorcao, 3)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              ))}
             </>
           )}
           {densidadesCalc!.miudosCalc.length > 0 && (
@@ -779,7 +964,56 @@ export default function ProjetoDocumentoPage() {
                   <tr key={i}><td className="border p-1">{m.materialNome}</td><td className="border p-1 text-center">{fmt(m.real, 3)}</td></tr>
                 ))}</tbody>
               </table>
+              {/* Leituras cruas do picnômetro por determinação, como na tela Densidades */}
+              {densidadesCalc!.miudosCalc.filter(m => m.dets.length > 0).map((m, i) => (
+                <div key={i} className="mb-3 doc-evitar-quebra">
+                  <h4 className="font-semibold text-xs mb-1">{m.materialNome} — determinações do picnômetro (g)</h4>
+                  <table className="w-full border-collapse text-[9px] leading-tight">
+                    <thead><tr className="bg-slate-100 text-center">
+                      <th className="border p-0.5">Det.</th><th className="border p-0.5">Picnômetro</th><th className="border p-0.5">Pic.+agregado</th>
+                      <th className="border p-0.5">Pic.+água</th><th className="border p-0.5">Pic.+agreg.+água</th>
+                      <th className="border p-0.5">Fator temp.</th><th className="border p-0.5">Real</th>
+                    </tr></thead>
+                    <tbody>
+                      {m.dets.map((d, iDet) => (
+                        <tr key={iDet} className="text-center">
+                          <td className="border p-0.5 font-semibold">{iDet + 1}</td>
+                          <td className="border p-0.5">{d.det.pesoPicnometro != null ? fmt(d.det.pesoPicnometro, 1) : '—'}</td>
+                          <td className="border p-0.5">{d.det.pesoPicAgregado != null ? fmt(d.det.pesoPicAgregado, 1) : '—'}</td>
+                          <td className="border p-0.5">{d.det.pesoPicAgua != null ? fmt(d.det.pesoPicAgua, 1) : '—'}</td>
+                          <td className="border p-0.5">{d.det.pesoPicAgregadoAgua != null ? fmt(d.det.pesoPicAgregadoAgua, 1) : '—'}</td>
+                          <td className="border p-0.5">{d.det.fatorCorrecaoTemp != null ? fmt(d.det.fatorCorrecaoTemp, 4) : '1'}</td>
+                          <td className="border p-0.5">{d.real != null ? fmt(d.real, 3) : '—'}</td>
+                        </tr>
+                      ))}
+                      <tr className="text-center bg-slate-50 font-semibold">
+                        <td className="border p-0.5">Média</td>
+                        <td className="border p-0.5">—</td><td className="border p-0.5">—</td><td className="border p-0.5">—</td>
+                        <td className="border p-0.5">—</td><td className="border p-0.5">—</td>
+                        <td className="border p-0.5">{fmt(m.real, 3)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              ))}
             </>
+          )}
+          {densidadesCalc!.linhasMerm.length > 0 && (
+            <div className="mb-3 doc-evitar-quebra">
+              <h3 className="font-semibold mb-2">Massa específica real média da mistura (MERM)</h3>
+              <table className="w-full border mb-2">
+                <thead><tr className="bg-slate-100">
+                  <th className="border p-1 text-left">Material</th><th className="border p-1">% na mistura</th><th className="border p-1">Densidade real</th>
+                </tr></thead>
+                <tbody>{densidadesCalc!.linhasMerm.map((l, i) => (
+                  <tr key={i}>
+                    <td className="border p-1">{l.materialNome}</td>
+                    <td className="border p-1 text-center">{fmt(l.pct, 2)}%</td>
+                    <td className="border p-1 text-center">{l.densidadeReal != null ? fmt(l.densidadeReal, 3) : '—'}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
           )}
           <p><b>Massa específica real média da mistura (MERM):</b> {densidadesCalc!.merm != null ? `${fmt(densidadesCalc!.merm, 3)} g/cm³` : '—'}</p>
         </section>
@@ -791,7 +1025,31 @@ export default function ProjetoDocumentoPage() {
           <h2 className="text-lg font-bold border-b-2 border-slate-800 mb-3">Ensaios complementares</h2>
 
           {temEA && (
-            <p className="mb-2 doc-evitar-quebra"><b>Equivalente de areia (DNER-ME 054/94):</b> {eaResultado != null ? `${fmt(eaResultado, 2)}%` : '—'}</p>
+            <div className="mb-4 doc-evitar-quebra">
+              <p className="mb-2"><b>Equivalente de areia (DNER-ME 054/94):</b> {eaResultado != null ? `${fmt(eaResultado, 2)}%` : '—'}</p>
+              {!!eaDetalhes?.length && (
+                <table className="w-full border-collapse text-[9px] leading-tight">
+                  <thead><tr className="bg-slate-100 text-center">
+                    <th className="border p-0.5">Det.</th><th className="border p-0.5">Leitura areia</th>
+                    <th className="border p-0.5">Leitura argila</th><th className="border p-0.5">EA (%)</th>
+                  </tr></thead>
+                  <tbody>
+                    {eaDetalhes.map((d, i) => (
+                      <tr key={i} className="text-center">
+                        <td className="border p-0.5 font-semibold">{i + 1}</td>
+                        <td className="border p-0.5">{fmt(d.leitura_areia, 2)}</td>
+                        <td className="border p-0.5">{fmt(d.leitura_argila, 2)}</td>
+                        <td className="border p-0.5">{d.ea != null ? fmt(d.ea, 2) : '—'}</td>
+                      </tr>
+                    ))}
+                    <tr className="text-center bg-slate-50 font-semibold">
+                      <td className="border p-0.5" colSpan={3}>Resultado (média)</td>
+                      <td className="border p-0.5">{eaResultado != null ? fmt(eaResultado, 2) : '—'}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              )}
+            </div>
           )}
           {temAdesividade && (
             <p className="mb-2 doc-evitar-quebra">
@@ -803,11 +1061,45 @@ export default function ProjetoDocumentoPage() {
             <p className="mb-2 doc-evitar-quebra"><b>Durabilidade ao sulfato de sódio (DNER-ME 089/94):</b> {fmt(data.complementares!.durabilidade_sulfato, 2)}% de perda</p>
           )}
           {temIndiceForma && (
-            <p className="mb-4 doc-evitar-quebra">
-              <b>Índice de forma / lamelaridade (NBR 7809 / DNIT 425/2020)</b>
-              {data.indiceForma!.material_nome && ` — ${data.indiceForma!.material_nome}`}:{' '}
-              média do IL = {fmt(data.indiceForma!.media_il, 3)}, % lamelar = {fmt(data.indiceForma!.pct_lamelar, 2)}%
-            </p>
+            <div className="mb-4">
+              <p className="mb-2 doc-evitar-quebra">
+                <b>Índice de forma / lamelaridade (NBR 7809 / DNIT 425/2020)</b>
+                {data.indiceForma!.material_nome && ` — ${data.indiceForma!.material_nome}`}:{' '}
+                média do IL = {fmt(data.indiceForma!.media_il, 3)}, % lamelar = {fmt(data.indiceForma!.pct_lamelar, 2)}%
+                {indiceFormaCalc?.resumo && ` (${indiceFormaCalc.resumo.totalGraos} grãos medidos, ${indiceFormaCalc.resumo.lamelares} lamelares)`}
+              </p>
+              {!!indiceFormaCalc?.linhas.length && (
+                <div className="grid grid-cols-3 gap-2">
+                  {/* Medições grão a grão (E, C, IL = C/E) divididas em colunas para caber na página */}
+                  {(() => {
+                    const linhas = indiceFormaCalc.linhas
+                    const porColuna = Math.ceil(linhas.length / 3)
+                    const colunas = [0, 1, 2]
+                      .map(c => linhas.slice(c * porColuna, (c + 1) * porColuna).map((g, j) => ({ g, num: c * porColuna + j + 1 })))
+                      .filter(col => col.length > 0)
+                    return colunas.map((col, iCol) => (
+                      <table key={iCol} className="w-full border-collapse text-[8px] leading-tight self-start">
+                        <thead><tr className="bg-slate-100 text-center">
+                          <th className="border p-0.5">Grão</th><th className="border p-0.5">E (mm)</th>
+                          <th className="border p-0.5">C (mm)</th><th className="border p-0.5">IL = C/E</th><th className="border p-0.5">Condição</th>
+                        </tr></thead>
+                        <tbody>{col.map(({ g, num }) => (
+                          <tr key={num} className="text-center">
+                            <td className="border p-0.5 font-semibold">{num}</td>
+                            <td className="border p-0.5">{fmt(g.espessura, 2)}</td>
+                            <td className="border p-0.5">{fmt(g.comprimento, 2)}</td>
+                            <td className="border p-0.5">{g.il != null ? fmt(g.il, 3) : '—'}</td>
+                            <td className={'border p-0.5' + (g.lamelar ? ' text-red-700 font-semibold' : '')}>
+                              {g.lamelar == null ? '—' : g.lamelar ? 'Lamelar' : 'Não lamelar'}
+                            </td>
+                          </tr>
+                        ))}</tbody>
+                      </table>
+                    ))
+                  })()}
+                </div>
+              )}
+            </div>
           )}
 
           {temViscosidade && (
@@ -821,6 +1113,30 @@ export default function ProjetoDocumentoPage() {
                 <p><b>Temperatura de usinagem:</b> {fmt(data.viscosidade!.temp_usinagem_min, 1)} a {fmt(data.viscosidade!.temp_usinagem_max, 1)} °C</p>
                 <p><b>Temperatura de compactação:</b> {fmt(data.viscosidade!.temp_compactacao_min, 1)} a {fmt(data.viscosidade!.temp_compactacao_max, 1)} °C</p>
               </div>
+              {/* Pontos medidos + regressão — mesmos dados analíticos da tela Viscosidade */}
+              {!!data.viscosidade!.pontos?.length && (
+                <div className="mb-3 doc-evitar-quebra">
+                  <table className="w-full border-collapse text-[9px] leading-tight mb-1">
+                    <thead><tr className="bg-slate-100 text-center">
+                      <th className="border p-0.5">Ponto</th><th className="border p-0.5">Temperatura (°C)</th><th className="border p-0.5">Viscosidade (seg SSF)</th>
+                    </tr></thead>
+                    <tbody>{data.viscosidade!.pontos.map((p, i) => (
+                      <tr key={i} className="text-center">
+                        <td className="border p-0.5 font-semibold">{i + 1}</td>
+                        <td className="border p-0.5">{fmt(p.temperatura, 1)}</td>
+                        <td className="border p-0.5">{fmt(p.viscosidade, 1)}</td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                  <p className="text-[9px] text-slate-600">
+                    Regressão ln(V) = a + b·T: a = <b>{fmt(viscosidadeResultado!.coefA, 4)}</b> · b = <b>{fmt(viscosidadeResultado!.coefB, 6)}</b>
+                    {data.viscosidade!.faixas && (
+                      <> · Faixas-alvo (seg SSF): usinagem {fmt(data.viscosidade!.faixas.usinagemMin, 0)}–{fmt(data.viscosidade!.faixas.usinagemMax, 0)}
+                        {' '}· compactação {fmt(data.viscosidade!.faixas.compactacaoMin, 0)}–{fmt(data.viscosidade!.faixas.compactacaoMax, 0)}</>
+                    )}
+                  </p>
+                </div>
+              )}
               <LineChart width={640} height={260} data={dadosGraficoViscosidade}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="temperatura" type="number" domain={['dataMin', 'dataMax']} label={{ value: 'Temperatura (°C)', position: 'insideBottom', offset: -4 }} />
