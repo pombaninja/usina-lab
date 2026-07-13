@@ -240,7 +240,7 @@ export default function ProjetoViscosidadePage() {
               <div><p className="text-xs text-slate-500">Temperatura de compactação</p><p className="text-lg font-semibold">{fmt(resultado.r.tempCompactacao.min, 1)} a {fmt(resultado.r.tempCompactacao.max, 1)} °C</p></div>
             </div>
 
-            <div className="flex flex-col items-center">
+            <div className="w-fit mx-auto max-w-full">
               <h3 className="text-sm font-semibold mb-1 text-center">Curva viscosidade × temperatura (escala log)</h3>
               <LineChart width={520} height={280} data={dadosGrafico}>
                 <CartesianGrid strokeDasharray="3 3" />

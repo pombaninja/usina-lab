@@ -237,7 +237,7 @@ export default function ProjetoRiceTeorPage() {
       {pontosGrafico.length > 0 && (
         <section className="bg-white p-4 rounded-xl shadow-sm space-y-2">
           <h2 className="font-semibold text-lg text-grp-700">Densidade máxima (DMT) × Teor</h2>
-          <div className="flex justify-center">
+          <div className="w-fit mx-auto max-w-full">
           <LineChart width={520} height={280} data={pontosGrafico}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="teor" type="number" domain={['dataMin', 'dataMax']} label={{ value: 'Teor (%)', position: 'insideBottom', offset: -4 }} />

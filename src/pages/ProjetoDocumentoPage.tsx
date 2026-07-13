@@ -660,8 +660,8 @@ export default function ProjetoDocumentoPage() {
           </table>
           <p className="mb-3"><b>Teor ótimo de projeto:</b> {d.teor_otimo != null ? `${fmt(d.teor_otimo, 2)}%` : '—'}
             {marshallResultado!.teorOtimoSugerido != null && ` (sugerido pelo cruzamento em 4% de vazios: ${fmt(marshallResultado!.teorOtimoSugerido, 2)}%)`}</p>
-          {/* justify-items-center: cada gráfico centrado na própria célula da grade */}
-          <div className="grid grid-cols-2 gap-4 justify-items-center">
+          {/* 1 coluna em janelas estreitas, 2 colunas em telas médias e SEMPRE 2 na impressão */}
+          <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-4 justify-items-center">
             {([
               ['Densidade aparente × teor', 'Densidade', '#dc2626', 'densidadeAparente', 3],
               ['Vazios (%) × teor', 'Vazios', '#2563eb', 'vazios', 2],
@@ -672,7 +672,7 @@ export default function ProjetoDocumentoPage() {
             ] as const).map(([titulo, chave, cor, campo, dec]) => {
               const valorOtimo = resultadoTeorOtimo ? resultadoTeorOtimo[campo] : null
               return (
-                <div key={chave} className="doc-evitar-quebra flex flex-col items-center">
+                <div key={chave} className="doc-evitar-quebra w-fit mx-auto max-w-full">
                   <h3 className="text-xs font-semibold mb-1 text-center">{titulo}</h3>
                   <LineChart width={320} height={190} data={dadosGraficoMarshall}>
                     <CartesianGrid strokeDasharray="3 3" />
@@ -835,7 +835,7 @@ export default function ProjetoDocumentoPage() {
             ))}</tbody>
           </table>
           {pontosGraficoRice.length > 0 && (
-            <div className="mt-3 doc-evitar-quebra flex flex-col items-center">
+            <div className="mt-3 doc-evitar-quebra w-fit mx-auto max-w-full">
               <h3 className="text-xs font-semibold mb-1 text-center">Densidade máxima (DMT) × Teor</h3>
               <LineChart width={480} height={220} data={pontosGraficoRice}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -1129,7 +1129,7 @@ export default function ProjetoDocumentoPage() {
                   </p>
                 </div>
               )}
-              <div className="flex justify-center">
+              <div className="w-fit mx-auto max-w-full">
               <LineChart width={640} height={260} data={dadosGraficoViscosidade}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="temperatura" type="number" domain={['dataMin', 'dataMax']} label={{ value: 'Temperatura (°C)', position: 'insideBottom', offset: -4 }} />

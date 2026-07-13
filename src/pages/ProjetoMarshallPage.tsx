@@ -437,8 +437,8 @@ export default function ProjetoMarshallPage() {
             ))}</tbody>
           </table>
 
-          {/* justify-items-center + mx-auto: cada gráfico centrado na célula e grade centrada na página */}
-          <div className="grid grid-cols-2 gap-6 justify-items-center max-w-4xl mx-auto">
+          {/* 1 coluna centrada em janelas estreitas, 2 colunas a partir de md; cada gráfico centrado na célula */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 justify-items-center max-w-4xl mx-auto">
             {([
               ['Densidade aparente × teor', 'Densidade', '#dc2626', 'densidadeAparente', 3],
               ['Vazios (%) × teor', 'Vazios', '#2563eb', 'vazios', 2],
@@ -449,7 +449,7 @@ export default function ProjetoMarshallPage() {
             ] as const).map(([titulo, chave, cor, campo, dec]) => {
               const valorOtimo = otimoCurvas ? otimoCurvas[campo] : null
               return (
-                <div key={chave} className="flex flex-col items-center">
+                <div key={chave} className="w-fit mx-auto max-w-full">
                   <h3 className="text-sm font-semibold mb-1 text-center">{titulo}</h3>
                   <LineChart width={380} height={220} data={dadosGrafico}>
                     <CartesianGrid strokeDasharray="3 3" />

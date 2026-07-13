@@ -356,7 +356,7 @@ export default function ProjetoAgregadosPage() {
             {res && !res.ok && <p className="text-amber-700 bg-amber-50 p-3 rounded">{res.problema}</p>}
 
             {res?.ok && (
-              <div className="flex justify-center">
+              <div className="w-fit mx-auto max-w-full">
                 <LineChart width={480} height={220} data={dadosGrafico}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="abertura" type="number" label={{ value: 'Abertura (mm)', position: 'insideBottom', offset: -4 }} />

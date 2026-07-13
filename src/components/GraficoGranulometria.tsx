@@ -8,7 +8,8 @@ export default function GraficoGranulometria({ linhas, largura = 640 }: { linhas
     'Esp. mín': l.espMin, 'Esp. máx': l.espMax,
   }))
   return (
-    <div className="flex justify-center w-full">
+    // w-fit + mx-auto: centralização em bloco, estável também na impressão
+    <div className="w-fit mx-auto max-w-full">
       <LineChart width={largura} height={340} data={dados}>
         <CartesianGrid strokeDasharray="3 3" />
         <XAxis dataKey="log" type="number" domain={[-1.3, 1.6]}
