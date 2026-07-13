@@ -27,6 +27,8 @@ import ProjetoLamelaridadePage from './pages/ProjetoLamelaridadePage'
 import ProjetoViscosidadePage from './pages/ProjetoViscosidadePage'
 import ProjetoDocumentoPage from './pages/ProjetoDocumentoPage'
 import EnsaiosListaPage from './pages/EnsaiosListaPage'
+import EnsaiosLabPage from './pages/EnsaiosLabPage'
+import EnsaioLabPage from './pages/EnsaioLabPage'
 import EnsaioCauqPage from './pages/EnsaioCauqPage'
 import EnsaioDetalhePage from './pages/EnsaioDetalhePage'
 import LaudosListaPage from './pages/LaudosListaPage'
@@ -69,6 +71,8 @@ export default function App() {
               <Route path="/ensaios/novo" element={<EnsaioCauqPage />} />
               <Route path="/ensaios/:id/editar" element={<EnsaioCauqPage />} />
               <Route path="/ensaios/:id" element={<EnsaioDetalhePage />} />
+              <Route path="/ensaios-lab" element={<EnsaiosLabPage />} />
+              <Route path="/ensaios-lab/:id" element={<EnsaioLabPage />} />
               <Route path="/laudos" element={<LaudosListaPage />} />
               <Route path="/laudos/:id/imprimir" element={<LaudoImprimirPage />} />
             </Route>

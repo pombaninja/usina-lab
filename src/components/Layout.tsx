@@ -18,6 +18,7 @@ export default function Layout() {
         <span className="font-bold text-grp-700 mr-4 whitespace-nowrap">Usina &amp; Laboratório</span>
         {perfis['ensaios_usina'] && <>
           <NavLink to="/ensaios" className={navClasse}>Ensaios</NavLink>
+          <NavLink to="/ensaios-lab" className={navClasse}>Ensaios Lab</NavLink>
           <NavLink to="/laudos" className={navClasse}>Laudos</NavLink>
           <NavLink to="/dosagens" className={navClasse}>Projetos</NavLink>
         </>}
