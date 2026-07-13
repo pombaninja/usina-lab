@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { calcularGranulometria, normalizarPeneira, type PeneiraLeitura } from '../lib/calculos/granulometria'
-import { calcularMarshall } from '../lib/calculos/marshall'
+import { calcularMarshall, fatorCorrecaoPorVolume } from '../lib/calculos/marshall'
 import { teorRotarex, gmmRice } from '../lib/calculos/teorBetume'
 import { calcularRtd } from '../lib/calculos/rtd'
 import { avaliarParametros } from '../lib/calculos/avaliacao'
@@ -460,10 +460,21 @@ export default function EnsaioCauqPage() {
             return (
               <tr key={i} className="border-b">
                 <td className="p-2 font-semibold">{i + 1}</td>
-                {(['pesoAr', 'pesoImerso', 'leituraEstab', 'altura', 'fator', 'fluencia'] as const).map(k => (
-                  <td key={k}><input className="border rounded p-1 w-28" type="number" step="any" value={c[k]}
-                        onChange={e => setCps(cps.map((x, j) => j === i ? { ...x, [k]: e.target.value } : x))} /></td>
-                ))}
+                {(['pesoAr', 'pesoImerso', 'leituraEstab', 'altura', 'fator', 'fluencia'] as const).map(k => {
+                  // Fator da tabela DER pelo volume do CP — mesmo parâmetro do projeto CBUQ.
+                  // Campo vazio usa a tabela; valor digitado que diverge dela fica em âmbar.
+                  const volume = n(c.pesoAr) - n(c.pesoImerso)
+                  const fatorTabela = k === 'fator' && Number.isFinite(volume) && volume > 0 ? fatorCorrecaoPorVolume(volume) : null
+                  const fatorDiverge = fatorTabela != null && c.fator !== '' && Math.abs(n(c.fator) - fatorTabela) > 1e-9
+                  return (
+                    <td key={k}><input
+                      className={`border rounded p-1 w-28 ${fatorDiverge ? 'border-amber-500 bg-amber-50 text-amber-800' : ''}`}
+                      placeholder={fatorTabela != null ? `tabela: ${fmt(fatorTabela, 2)}` : undefined}
+                      title={fatorDiverge ? `Difere da tabela pelo volume (${fmt(fatorTabela!, 2)}). Deixe vazio para usar a tabela — mesmo parâmetro do projeto.` : undefined}
+                      type="number" step="any" value={c[k]}
+                      onChange={e => setCps(cps.map((x, j) => j === i ? { ...x, [k]: e.target.value } : x))} /></td>
+                  )
+                })}
                 <td className="p-2">{preenchido && r ? fmt(r.densidadeAparente, 3) : ''}</td>
                 <td className="p-2">{preenchido && r ? fmt(r.vazios, 2) : ''}</td>
                 <td className="p-2">{preenchido && r ? fmt(r.estabilidadeCorrigida, 0) : ''}</td>
@@ -472,6 +483,12 @@ export default function EnsaioCauqPage() {
             )
           })}</tbody>
         </table>
+        {cps.some(c => {
+          const v = n(c.pesoAr) - n(c.pesoImerso)
+          return Number.isFinite(v) && v > 0 && c.fator !== '' && Math.abs(n(c.fator) - fatorCorrecaoPorVolume(v)) > 1e-9
+        }) && (
+          <p className="text-amber-700 text-sm mt-1">Fator digitado difere da tabela DER pelo volume do CP (destacado em âmbar). Deixe o fator vazio para usar a tabela — mesmo parâmetro do projeto CBUQ.</p>
+        )}
         {calc?.ok && calc.marshallRes && (
           <p className="mt-2 text-sm text-slate-700">
             Médias — Vazios: <b>{fmt(calc.marshallRes.medias.vazios, 2)}%</b> · VAM: <b>{fmt(calc.marshallRes.medias.vam, 1)}</b> ·
