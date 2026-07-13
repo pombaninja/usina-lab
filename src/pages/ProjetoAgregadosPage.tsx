@@ -8,6 +8,8 @@ import {
   calcularGranulometriaAgregado, combinarGranulometrias,
   type PeneiraRef, type DeterminacaoAgregado, type LinhaAgregado,
 } from '../lib/calculos/agregadoGranulometria'
+import type { LinhaGranulometria } from '../lib/calculos/granulometria'
+import GraficoGranulometria from '../components/GraficoGranulometria'
 import { fmt } from '../lib/formato'
 
 interface DetForm { pesoTotal: string; retidos: Record<string, string> }
@@ -41,10 +43,10 @@ export default function ProjetoAgregadosPage() {
     queryKey: ['peneiras-espec-agregados', dosagem?.especificacao_id],
     enabled: !!dosagem,
     queryFn: async () => {
-      const { data, error } = await supabase.from('especificacao_peneiras').select('peneira, abertura_mm, passante_min, passante_max')
+      const { data, error } = await supabase.from('especificacao_peneiras').select('peneira, abertura_mm, passante_min, passante_max, tolerancia_trabalho')
         .eq('especificacao_id', dosagem!.especificacao_id).order('abertura_mm', { ascending: false })
       if (error) throw error
-      return (data ?? []) as { peneira: string; abertura_mm: number; passante_min: number; passante_max: number }[]
+      return (data ?? []) as { peneira: string; abertura_mm: number; passante_min: number; passante_max: number; tolerancia_trabalho: number | null }[]
     },
   })
 
@@ -53,10 +55,11 @@ export default function ProjetoAgregadosPage() {
     [peneirasEspec],
   )
 
-  // Faixa da norma (% passante mín/máx) por peneira, para comparar com a curva combinada.
+  // Faixa da norma (% passante mín/máx) + tolerância de trabalho por peneira,
+  // para comparar com a curva combinada e montar a faixa de trabalho.
   const limitesPorPeneira = useMemo(() => {
-    const m = new Map<string, { min: number; max: number }>()
-    for (const p of peneirasEspec ?? []) m.set(p.peneira, { min: p.passante_min, max: p.passante_max })
+    const m = new Map<string, { min: number; max: number; tol: number }>()
+    for (const p of peneirasEspec ?? []) m.set(p.peneira, { min: p.passante_min, max: p.passante_max, tol: p.tolerancia_trabalho ?? 0 })
     return m
   }, [peneirasEspec])
 
@@ -169,6 +172,27 @@ export default function ProjetoAgregadosPage() {
     if (!entradas.length) return null
     return combinarGranulometrias(entradas)
   }, [agregados, resultados])
+
+  // Linhas para o gráfico padrão de granulometria (mesmo GraficoGranulometria dos laudos):
+  // faixa de TRABALHO = combinada ± tolerância de trabalho da especificação (clampada em
+  // 0–100, por peneira); faixa ESPECIFICADA = % passante mín/máx da norma.
+  const linhasCombinada = useMemo((): LinhaGranulometria[] | null => {
+    if (!combinada) return null
+    return combinada.map(l => {
+      const lim = limitesPorPeneira.get(l.peneira)
+      const linha: LinhaGranulometria = {
+        peneira: l.peneira, aberturaMm: l.aberturaMm, retidoAcum: 0,
+        pctRetidaAcum: 100 - l.pctPassa, pctPassando: l.pctPassa,
+      }
+      if (lim) {
+        linha.espMin = lim.min
+        linha.espMax = lim.max
+        linha.trabMin = Math.max(0, l.pctPassa - lim.tol)
+        linha.trabMax = Math.min(100, l.pctPassa + lim.tol)
+      }
+      return linha
+    })
+  }, [combinada, limitesPorPeneira])
 
   // Soma das % informadas nos agregados com resultado válido (para o aviso não-bloqueante de 100%).
   const somaPct = useMemo(() => {
@@ -377,16 +401,20 @@ export default function ProjetoAgregadosPage() {
             <table className="w-full text-sm">
               <thead><tr className="text-left border-b">
                 <th className="p-2">Peneira</th><th>Abertura (mm)</th><th>% passa combinada</th>
+                <th>Faixa de trabalho (± tolerância)</th>
                 <th>% mín (norma)</th><th>% máx (norma)</th><th>Situação</th>
               </tr></thead>
               <tbody>{combinada.map(l => {
                 const lim = limitesPorPeneira.get(l.peneira)
                 const conforme = lim ? l.pctPassa >= lim.min - 1e-9 && l.pctPassa <= lim.max + 1e-9 : null
+                // Faixa de trabalho = combinada ± tolerância de trabalho da especificação, clampada em 0–100.
+                const trab = lim ? { min: Math.max(0, l.pctPassa - lim.tol), max: Math.min(100, l.pctPassa + lim.tol) } : null
                 return (
                   <tr key={l.peneira} className="border-b">
                     <td className="p-2 font-semibold">{l.peneira}</td>
                     <td>{fmt(l.aberturaMm, 3)}</td>
                     <td className="p-2">{fmt(l.pctPassa, 2)}%</td>
+                    <td>{trab ? `${fmt(trab.min, 1)} – ${fmt(trab.max, 1)}%` : '—'}</td>
                     <td>{lim ? `${fmt(lim.min, 1)}%` : '—'}</td>
                     <td>{lim ? `${fmt(lim.max, 1)}%` : '—'}</td>
                     <td className={conforme === null ? '' : conforme ? 'text-green-700' : 'text-red-600 font-semibold'}>
@@ -396,24 +424,9 @@ export default function ProjetoAgregadosPage() {
                 )
               })}</tbody>
             </table>
-            <LineChart width={480} height={220} data={combinada.map(l => {
-              const lim = limitesPorPeneira.get(l.peneira)
-              return {
-                abertura: l.aberturaMm,
-                pctPassa: Number(l.pctPassa.toFixed(2)),
-                min: lim ? lim.min : null,
-                max: lim ? lim.max : null,
-              }
-            })}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="abertura" type="number" label={{ value: 'Abertura (mm)', position: 'insideBottom', offset: -4 }} />
-              <YAxis label={{ value: '% passa', angle: -90, position: 'insideLeft' }} />
-              <Tooltip />
-              <Legend />
-              <Line dataKey="min" name="Mín (norma)" stroke="#64748b" strokeDasharray="5 3" strokeWidth={1} dot={false} connectNulls />
-              <Line dataKey="max" name="Máx (norma)" stroke="#64748b" strokeDasharray="5 3" strokeWidth={1} dot={false} connectNulls />
-              <Line dataKey="pctPassa" name="% passa combinada" stroke="#dc2626" strokeWidth={2} dot />
-            </LineChart>
+            {/* Gráfico padrão de granulometria (eixo X em log, Y fixo 0–100): curva combinada,
+                faixa de trabalho (combinada ± tolerância) e faixa da especificação. */}
+            {linhasCombinada && <GraficoGranulometria linhas={linhasCombinada} largura={640} />}
           </>
         )}
       </section>

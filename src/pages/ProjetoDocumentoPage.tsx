@@ -176,14 +176,23 @@ export default function ProjetoDocumentoPage() {
   const granulometria = useMemo(() => {
     if (!data || !combinadaBruta) return null
     // Reaproveita calcularGranulometria (golden) passando a % passa combinada como se fosse
-    // um retido acumulado de uma amostra de 100g — assim a mesma fórmula de faixa de
-    // trabalho/especificação usada nos ensaios (granulometria.ts) é reutilizada aqui, sem duplicar lógica.
+    // um retido acumulado de uma amostra de 100g (dá pctPassando + espMin/espMax da norma).
     const leituras: PeneiraLeitura[] = combinadaBruta.map(l => ({ peneira: l.peneira, aberturaMm: l.aberturaMm, retidoAcum: 100 - l.pctPassa }))
     const faixa: FaixaPeneira[] = data.peneiras.map(p => ({
       peneira: p.peneira, passanteMin: p.passante_min, passanteMax: p.passante_max, toleranciaTrabalho: p.tolerancia_trabalho ?? 0,
     }))
     try {
-      return calcularGranulometria(100, leituras, faixa, data.dosagem.curva_projeto ?? undefined)
+      const base = calcularGranulometria(100, leituras, faixa)
+      // FAIXA DE TRABALHO do projeto = combinada ± tolerância de trabalho da especificação,
+      // clampada em 0–100 (a combinada É a curva de projeto; a faixa especificada permanece
+      // como o par próprio da norma).
+      const tolPorPeneira = new Map(data.peneiras.map(p => [normalizarPeneira(p.peneira), p.tolerancia_trabalho ?? 0]))
+      const linhas = base.linhas.map(l => {
+        if (l.espMin === undefined) return l
+        const tol = tolPorPeneira.get(normalizarPeneira(l.peneira)) ?? 0
+        return { ...l, trabMin: Math.max(0, l.pctPassando - tol), trabMax: Math.min(100, l.pctPassando + tol) }
+      })
+      return { ...base, linhas }
     } catch { return null }
   }, [data, combinadaBruta])
 
