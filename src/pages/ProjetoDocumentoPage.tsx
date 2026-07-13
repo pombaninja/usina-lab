@@ -449,14 +449,15 @@ export default function ProjetoDocumentoPage() {
   return (
     <div className="max-w-[210mm] mx-auto bg-white p-8 text-sm print:p-0">
       <div className="print:hidden mb-4 flex gap-3">
-        <button onClick={() => window.print()} className="bg-slate-800 text-white rounded px-4 py-2">Imprimir / Salvar PDF</button>
+        <button onClick={() => window.print()} className="bg-grp-600 hover:bg-grp-700 text-white rounded px-4 py-2">Imprimir / Salvar PDF</button>
         <Link to="/dosagens" className="border rounded px-4 py-2 text-slate-700">Voltar aos projetos</Link>
       </div>
 
       {/* ===== 1. Capa (página inteira; tudo que vem depois começa na página 2) ===== */}
       <header className="mb-6 min-h-[248mm] flex flex-col doc-evitar-quebra">
-        {/* Topo: identificação da empresa */}
-        <div className="border-b-4 border-slate-800 pb-4">
+        {/* Topo: logo GRP + identificação da empresa */}
+        <div className="border-b-4 border-grp-600 pb-4">
+          <img src="/logo-grp.png" alt="Grupo Ribeiro Porto" className="w-[200px] mb-4" />
           <h1 className="text-3xl font-bold text-slate-900">{d.empresas?.razao_social ?? '—'}</h1>
           <p className="text-slate-600 mt-1">{d.empresas?.cabecalho ?? 'Controle Tecnológico de Misturas Betuminosas'}</p>
           {d.empresas?.cnpj && <p className="text-slate-500 text-xs mt-1">CNPJ: {d.empresas.cnpj}</p>}
@@ -464,7 +465,7 @@ export default function ProjetoDocumentoPage() {
 
         {/* Centro: título do projeto + resultado-chave */}
         <div className="flex-1 flex flex-col items-center justify-center text-center py-12">
-          <p className="text-xs uppercase tracking-[0.35em] text-slate-500 mb-4">Projeto de Dosagem</p>
+          <p className="text-xs uppercase tracking-[0.35em] text-grp-600 mb-4">Projeto de Dosagem</p>
           <h2 className="text-4xl font-bold text-slate-900 leading-tight">{d.nome}</h2>
           <p className="text-slate-600 mt-3 text-base">
             {CONTEXTO_LABEL[d.contexto ?? ''] ?? '—'} · {TIPO_LABEL[d.tipo ?? ''] ?? d.tipo ?? '—'}
@@ -473,7 +474,7 @@ export default function ProjetoDocumentoPage() {
             Especificação: {d.especificacoes?.nome ?? '—'} · Norma: {d.especificacoes?.norma ?? '—'}
           </p>
 
-          <div className="border-2 border-slate-800 rounded-lg px-12 py-6 mt-10 doc-evitar-quebra">
+          <div className="border-2 border-grp-600 rounded-lg px-12 py-6 mt-10 doc-evitar-quebra">
             <p className="text-xs uppercase tracking-widest text-slate-500">Teor ótimo de projeto</p>
             <p className="text-3xl font-bold text-slate-900 mt-1">
               {d.teor_otimo != null ? `${fmt(d.teor_otimo, 2)} %` : '—'}
@@ -512,14 +513,14 @@ export default function ProjetoDocumentoPage() {
 
       {/* ===== 2. Resumo do projeto (inicia na página 2) ===== */}
       <section className="mb-6 doc-pagina">
-        <h2 className="text-lg font-bold border-b-2 border-slate-800 mb-3">Resumo do projeto</h2>
+        <h2 className="text-lg font-bold text-grp-700 border-b-2 border-grp-600 mb-3">Resumo do projeto</h2>
 
         {/* 2a. Composição */}
         <h3 className="font-semibold mb-2">Composição da mistura</h3>
         {!data.composicao.length && <p className="text-slate-500 mb-4">Este projeto não tem composição cadastrada.</p>}
         {!!data.composicao.length && (
           <table className="w-full border mb-6 doc-evitar-quebra">
-            <thead><tr className="bg-slate-100">
+            <thead><tr className="bg-grp-100">
               <th className="border p-1 text-left">Origem</th><th className="border p-1 text-left">Material</th>
               <th className="border p-1">Silo</th><th className="border p-1">% na mistura</th><th className="border p-1">Densidade</th>
             </tr></thead>
@@ -541,7 +542,7 @@ export default function ProjetoDocumentoPage() {
         {granulometriaLinhas && (
           <div className="mb-6">
             <table className="w-full border mb-3 doc-evitar-quebra">
-              <thead><tr className="bg-slate-100">
+              <thead><tr className="bg-grp-100">
                 <th className="border p-1">Peneira</th><th className="border p-1">mm</th><th className="border p-1">% passa combinada</th>
                 <th className="border p-1">Faixa de trabalho</th><th className="border p-1">Especificada</th><th className="border p-1">Situação</th>
               </tr></thead>
@@ -575,7 +576,7 @@ export default function ProjetoDocumentoPage() {
         {!linhasCaracteristicas.length && <p className="text-slate-500">Este projeto ainda não tem características lançadas.</p>}
         {!!linhasCaracteristicas.length && (
           <table className="w-full border doc-evitar-quebra">
-            <thead><tr className="bg-slate-100">
+            <thead><tr className="bg-grp-100">
               <th className="border p-1 text-left">Parâmetro</th><th className="border p-1">Obtido</th>
               <th className="border p-1">Especificado</th><th className="border p-1">Situação</th>
             </tr></thead>
@@ -594,7 +595,7 @@ export default function ProjetoDocumentoPage() {
       {/* ===== 2d. Granulometria individual dos agregados — leituras e cálculos por determinação ===== */}
       {agregadosDetalhe.some(a => a.linhas) && (
         <section className="mb-6 doc-pagina">
-          <h2 className="text-lg font-bold border-b-2 border-slate-800 mb-3">Granulometria dos agregados — resultados analíticos</h2>
+          <h2 className="text-lg font-bold text-grp-700 border-b-2 border-grp-600 mb-3">Granulometria dos agregados — resultados analíticos</h2>
           {agregadosDetalhe.filter(a => a.linhas).map((a, iAg) => (
             <div key={iAg} className="mb-4 doc-evitar-quebra">
               <h3 className="font-semibold text-xs mb-0.5">
@@ -607,7 +608,7 @@ export default function ProjetoDocumentoPage() {
                 {a.row.determinacoes.map((det, j) => `Det. ${j + 1} — peso total: ${fmt(det.pesoTotal, 1)} g`).join(' · ')}
               </p>
               <table className="w-full border-collapse text-[9px] leading-tight">
-                <thead><tr className="bg-slate-100 text-center">
+                <thead><tr className="bg-grp-100 text-center">
                   <th className="border p-0.5">Peneira</th><th className="border p-0.5">Abertura (mm)</th>
                   {a.row.determinacoes.map((_, j) => (
                     <th key={j} className="border p-0.5">Retido acum. det. {j + 1} (g)</th>
@@ -637,9 +638,9 @@ export default function ProjetoDocumentoPage() {
       {/* ===== 3. Dosagem Marshall ===== */}
       {temMarshall && (
         <section className="mb-6 doc-pagina">
-          <h2 className="text-lg font-bold border-b-2 border-slate-800 mb-3">Dosagem Marshall</h2>
+          <h2 className="text-lg font-bold text-grp-700 border-b-2 border-grp-600 mb-3">Dosagem Marshall</h2>
           <table className="w-full border mb-4 doc-evitar-quebra">
-            <thead><tr className="bg-slate-100">
+            <thead><tr className="bg-grp-100">
               <th className="border p-1">Teor</th><th className="border p-1">Densidade aparente</th><th className="border p-1">Vazios (%)</th>
               <th className="border p-1">Estabilidade</th><th className="border p-1">Fluência</th><th className="border p-1">VAM</th><th className="border p-1">RBV</th>
             </tr></thead>
@@ -707,7 +708,7 @@ export default function ProjetoDocumentoPage() {
                     <h4 className="font-semibold text-xs mb-1">Teor {fmt(det.teor, 1)}%</h4>
                     <table className="w-full border-collapse text-[8px] leading-tight">
                       <thead>
-                        <tr className="bg-slate-100 text-center">
+                        <tr className="bg-grp-100 text-center">
                           <th className="border p-0.5" rowSpan={2}>CP</th>
                           <th className="border p-0.5" rowSpan={2}>% CAP</th>
                           <th className="border p-0.5" colSpan={2}>Peso (g)</th>
@@ -717,7 +718,7 @@ export default function ProjetoDocumentoPage() {
                           <th className="border p-0.5" colSpan={4}>Estabilidade</th>
                           <th className="border p-0.5" colSpan={2}>Fluência</th>
                         </tr>
-                        <tr className="bg-slate-100 text-center">
+                        <tr className="bg-grp-100 text-center">
                           <th className="border p-0.5">Peso no ar</th>
                           <th className="border p-0.5">Peso na água</th>
                           <th className="border p-0.5">Volume cm³</th>
@@ -816,9 +817,9 @@ export default function ProjetoDocumentoPage() {
       {/* ===== 3b. Ensaio RICE-TEOR (DMT por teor) ===== */}
       {riceTeorRows.length > 0 && (
         <section className="mb-6 doc-evitar-quebra">
-          <h2 className="text-lg font-bold border-b-2 border-slate-800 mb-3">Ensaio RICE-TEOR — DMT por teor</h2>
+          <h2 className="text-lg font-bold text-grp-700 border-b-2 border-grp-600 mb-3">Ensaio RICE-TEOR — DMT por teor</h2>
           <table className="w-full border">
-            <thead><tr className="bg-slate-100">
+            <thead><tr className="bg-grp-100">
               <th className="border p-1">Teor (% CAP)</th><th className="border p-1">A — amostra seca (g)</th>
               <th className="border p-1">B — frasco + água (g)</th><th className="border p-1">C — frasco + água + amostra (g)</th>
               <th className="border p-1">Fator temp.</th><th className="border p-1">DMT (Rice teórica)</th>
@@ -865,13 +866,13 @@ export default function ProjetoDocumentoPage() {
       {/* ===== 3c. Ruptura Diametral (RTD) ===== */}
       {rtdCalc && (
         <section className="mb-6 doc-evitar-quebra">
-          <h2 className="text-lg font-bold border-b-2 border-slate-800 mb-3">Ruptura Diametral (RTD)</h2>
+          <h2 className="text-lg font-bold text-grp-700 border-b-2 border-grp-600 mb-3">Ruptura Diametral (RTD)</h2>
           <p className="mb-2 text-xs text-slate-600">
             Constante da prensa (Dosagem Marshall): {rtdCalc.constante != null ? fmt(rtdCalc.constante, 4) : '—'}
             {' '}· RTD = 2·carga/(π·D·H), carga = leitura × constante, em MPa.
           </p>
           <table className="w-full border">
-            <thead><tr className="bg-slate-100">
+            <thead><tr className="bg-grp-100">
               <th className="border p-1">CP</th><th className="border p-1">Leitura</th>
               <th className="border p-1">Diâmetro (cm)</th><th className="border p-1">Altura (cm)</th>
               <th className="border p-1">RTD (MPa)</th>
@@ -898,12 +899,12 @@ export default function ProjetoDocumentoPage() {
       {/* ===== 4. Densidades ===== */}
       {temDensidades && (
         <section className="mb-6 doc-pagina">
-          <h2 className="text-lg font-bold border-b-2 border-slate-800 mb-3">Densidades</h2>
+          <h2 className="text-lg font-bold text-grp-700 border-b-2 border-grp-600 mb-3">Densidades</h2>
           {densidadesCalc!.graudosCalc.length > 0 && (
             <>
               <h3 className="font-semibold mb-2">Agregado graúdo — DNER-ME 081/98</h3>
               <table className="w-full border mb-4 doc-evitar-quebra">
-                <thead><tr className="bg-slate-100"><th className="border p-1 text-left">Material</th><th className="border p-1">Real</th><th className="border p-1">Aparente</th><th className="border p-1">Absorção (%)</th></tr></thead>
+                <thead><tr className="bg-grp-100"><th className="border p-1 text-left">Material</th><th className="border p-1">Real</th><th className="border p-1">Aparente</th><th className="border p-1">Absorção (%)</th></tr></thead>
                 <tbody>{densidadesCalc!.graudosCalc.map((g, i) => (
                   <tr key={i}>
                     <td className="border p-1">{g.materialNome}</td>
@@ -918,7 +919,7 @@ export default function ProjetoDocumentoPage() {
                 <div key={i} className="mb-3 doc-evitar-quebra">
                   <h4 className="font-semibold text-xs mb-1">{g.materialNome} — determinações (A = ar seco · B = saturado sup. seca · C = imerso, g)</h4>
                   <table className="w-full border-collapse text-[9px] leading-tight">
-                    <thead><tr className="bg-slate-100 text-center">
+                    <thead><tr className="bg-grp-100 text-center">
                       <th className="border p-0.5">Det.</th><th className="border p-0.5">A (g)</th><th className="border p-0.5">B (g)</th><th className="border p-0.5">C (g)</th>
                       <th className="border p-0.5">Real</th><th className="border p-0.5">Aparente</th><th className="border p-0.5">Absorção (%)</th>
                     </tr></thead>
@@ -951,7 +952,7 @@ export default function ProjetoDocumentoPage() {
             <>
               <h3 className="font-semibold mb-2">Agregado miúdo — picnômetro (DNER-ME 084/95)</h3>
               <table className="w-full border mb-4 doc-evitar-quebra">
-                <thead><tr className="bg-slate-100"><th className="border p-1 text-left">Material</th><th className="border p-1">Real</th></tr></thead>
+                <thead><tr className="bg-grp-100"><th className="border p-1 text-left">Material</th><th className="border p-1">Real</th></tr></thead>
                 <tbody>{densidadesCalc!.miudosCalc.map((m, i) => (
                   <tr key={i}><td className="border p-1">{m.materialNome}</td><td className="border p-1 text-center">{fmt(m.real, 3)}</td></tr>
                 ))}</tbody>
@@ -961,7 +962,7 @@ export default function ProjetoDocumentoPage() {
                 <div key={i} className="mb-3 doc-evitar-quebra">
                   <h4 className="font-semibold text-xs mb-1">{m.materialNome} — determinações do picnômetro (g)</h4>
                   <table className="w-full border-collapse text-[9px] leading-tight">
-                    <thead><tr className="bg-slate-100 text-center">
+                    <thead><tr className="bg-grp-100 text-center">
                       <th className="border p-0.5">Det.</th><th className="border p-0.5">Picnômetro</th><th className="border p-0.5">Pic.+agregado</th>
                       <th className="border p-0.5">Pic.+água</th><th className="border p-0.5">Pic.+agreg.+água</th>
                       <th className="border p-0.5">Fator temp.</th><th className="border p-0.5">Real</th>
@@ -994,7 +995,7 @@ export default function ProjetoDocumentoPage() {
             <div className="mb-3 doc-evitar-quebra">
               <h3 className="font-semibold mb-2">Massa específica real média da mistura (MERM)</h3>
               <table className="w-full border mb-2">
-                <thead><tr className="bg-slate-100">
+                <thead><tr className="bg-grp-100">
                   <th className="border p-1 text-left">Material</th><th className="border p-1">% na mistura</th><th className="border p-1">Densidade real</th>
                 </tr></thead>
                 <tbody>{densidadesCalc!.linhasMerm.map((l, i) => (
@@ -1014,14 +1015,14 @@ export default function ProjetoDocumentoPage() {
       {/* ===== 5. Ensaios complementares ===== */}
       {temComplementares && (
         <section className="mb-6 doc-pagina">
-          <h2 className="text-lg font-bold border-b-2 border-slate-800 mb-3">Ensaios complementares</h2>
+          <h2 className="text-lg font-bold text-grp-700 border-b-2 border-grp-600 mb-3">Ensaios complementares</h2>
 
           {temEA && (
             <div className="mb-4 doc-evitar-quebra">
               <p className="mb-2"><b>Equivalente de areia (DNER-ME 054/94):</b> {eaResultado != null ? `${fmt(eaResultado, 2)}%` : '—'}</p>
               {!!eaDetalhes?.length && (
                 <table className="w-full border-collapse text-[9px] leading-tight">
-                  <thead><tr className="bg-slate-100 text-center">
+                  <thead><tr className="bg-grp-100 text-center">
                     <th className="border p-0.5">Det.</th><th className="border p-0.5">Leitura areia</th>
                     <th className="border p-0.5">Leitura argila</th><th className="border p-0.5">EA (%)</th>
                   </tr></thead>
@@ -1071,7 +1072,7 @@ export default function ProjetoDocumentoPage() {
                       .filter(col => col.length > 0)
                     return colunas.map((col, iCol) => (
                       <table key={iCol} className="w-full border-collapse text-[8px] leading-tight self-start">
-                        <thead><tr className="bg-slate-100 text-center">
+                        <thead><tr className="bg-grp-100 text-center">
                           <th className="border p-0.5">Grão</th><th className="border p-0.5">E (mm)</th>
                           <th className="border p-0.5">C (mm)</th><th className="border p-0.5">IL = C/E</th><th className="border p-0.5">Condição</th>
                         </tr></thead>
@@ -1109,7 +1110,7 @@ export default function ProjetoDocumentoPage() {
               {!!data.viscosidade!.pontos?.length && (
                 <div className="mb-3 doc-evitar-quebra">
                   <table className="w-full border-collapse text-[9px] leading-tight mb-1">
-                    <thead><tr className="bg-slate-100 text-center">
+                    <thead><tr className="bg-grp-100 text-center">
                       <th className="border p-0.5">Ponto</th><th className="border p-0.5">Temperatura (°C)</th><th className="border p-0.5">Viscosidade (seg SSF)</th>
                     </tr></thead>
                     <tbody>{data.viscosidade!.pontos.map((p, i) => (
@@ -1156,7 +1157,7 @@ export default function ProjetoDocumentoPage() {
       {/* ===== 5b. Índice de Lamelaridade por fração (DAER/RS-EL 108/01) ===== */}
       {!!lamelaridadeCalc?.length && (
         <section className="mb-6">
-          <h2 className="text-lg font-bold border-b-2 border-slate-800 mb-3">Índice de Lamelaridade</h2>
+          <h2 className="text-lg font-bold text-grp-700 border-b-2 border-grp-600 mb-3">Índice de Lamelaridade</h2>
           <p className="mb-2 text-xs text-slate-600">
             Método por fração (DAER/RS-EL 108/01): IL da fração = peso lamelar / peso da fração × 100;
             IL final = Σ(% da fração × IL) / Σ(% das frações ensaiadas). Ensaio distinto do índice de forma grão a grão.
@@ -1171,7 +1172,7 @@ export default function ProjetoDocumentoPage() {
               </h3>
               <div className="grid grid-cols-2 gap-2">
                 <table className="w-full border-collapse text-[9px] leading-tight self-start">
-                  <thead><tr className="bg-slate-100 text-center">
+                  <thead><tr className="bg-grp-100 text-center">
                     <th className="border p-0.5">Peneira</th><th className="border p-0.5">Acum. retido (g)</th>
                     <th className="border p-0.5">Passante (g)</th><th className="border p-0.5">% passa</th>
                   </tr></thead>
@@ -1190,7 +1191,7 @@ export default function ProjetoDocumentoPage() {
                   </tbody>
                 </table>
                 <table className="w-full border-collapse text-[9px] leading-tight self-start">
-                  <thead><tr className="bg-slate-100 text-center">
+                  <thead><tr className="bg-grp-100 text-center">
                     <th className="border p-0.5">Fração (mm)</th><th className="border p-0.5">% fração</th>
                     <th className="border p-0.5">Peso fração (g)</th><th className="border p-0.5">Peso lamelar (g)</th>
                     <th className="border p-0.5">IL</th><th className="border p-0.5">Ponderado</th>

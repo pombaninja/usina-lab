@@ -149,13 +149,14 @@ export default function LaudoImprimirPage() {
   const e = laudo.ensaios_cauq
   return (
     <div className="max-w-[210mm] mx-auto bg-white p-8 text-sm print:p-0">
-      <button onClick={() => window.print()} className="print:hidden mb-4 bg-slate-800 text-white rounded px-4 py-2">
+      <button onClick={() => window.print()} className="print:hidden mb-4 bg-grp-600 hover:bg-grp-700 text-white rounded px-4 py-2">
         Imprimir / Salvar PDF
       </button>
 
-      <header className="border-b-4 border-slate-800 pb-3 mb-4 flex justify-between items-end doc-evitar-quebra">
+      <header className="border-b-4 border-grp-600 pb-3 mb-4 flex justify-between items-end doc-evitar-quebra">
         <div>
-          <h1 className="text-xl font-bold">{laudo.empresas.razao_social}</h1>
+          <img src="/logo-grp.png" alt="Grupo Ribeiro Porto" className="w-[150px] mb-2" />
+          <h1 className="text-xl font-bold text-grp-700">{laudo.empresas.razao_social}</h1>
           <p className="text-slate-600">{laudo.empresas.cabecalho ?? 'Controle Tecnológico de Misturas Betuminosas'}</p>
           {laudo.empresas.cnpj && <p className="text-slate-500 text-xs">CNPJ: {laudo.empresas.cnpj}</p>}
         </div>
@@ -177,9 +178,9 @@ export default function LaudoImprimirPage() {
 
       {s.avaliacoes?.length > 0 && (
         <section className="mb-4 doc-evitar-quebra">
-          <h2 className="font-bold border-b mb-2">Resultados × Especificação</h2>
+          <h2 className="font-bold text-grp-700 border-b border-grp-600 mb-2">Resultados × Especificação</h2>
           <table className="w-full border">
-            <thead><tr className="bg-slate-100"><th className="border p-1 text-left">Parâmetro</th><th className="border p-1">Obtido</th><th className="border p-1">Especificado</th><th className="border p-1">Situação</th></tr></thead>
+            <thead><tr className="bg-grp-100"><th className="border p-1 text-left">Parâmetro</th><th className="border p-1">Obtido</th><th className="border p-1">Especificado</th><th className="border p-1">Situação</th></tr></thead>
             <tbody>{s.avaliacoes.map((a: { parametro: string; valor: number; min: number | null; max: number | null; conforme: boolean }) => (
               <tr key={a.parametro}>
                 <td className="border p-1">{ROTULOS[a.parametro] ?? a.parametro}</td>
@@ -195,7 +196,7 @@ export default function LaudoImprimirPage() {
       {/* ===== Marshall do ensaio — resultados analíticos por corpo de prova ===== */}
       {marshallEnsaio && (
         <section className="mb-4 doc-evitar-quebra">
-          <h2 className="font-bold border-b mb-2">Marshall do ensaio — resultados por corpo de prova</h2>
+          <h2 className="font-bold text-grp-700 border-b border-grp-600 mb-2">Marshall do ensaio — resultados por corpo de prova</h2>
           <p className="text-[9px] text-slate-600 mb-1">
             Teor de ligante considerado: <b>{fmt(marshallEnsaio.params.teorLigante, 2)}%</b> ·
             Gmm (Rice): <b>{fmt(marshallEnsaio.params.densMaxTeorica, 3)}</b> ·
@@ -205,7 +206,7 @@ export default function LaudoImprimirPage() {
           </p>
           <table className="w-full border-collapse text-[8px] leading-tight">
             <thead>
-              <tr className="bg-slate-100 text-center">
+              <tr className="bg-grp-100 text-center">
                 <th className="border p-0.5" rowSpan={2}>CP</th>
                 <th className="border p-0.5" colSpan={2}>Peso (g)</th>
                 <th className="border p-0.5" colSpan={4}>Densidade</th>
@@ -214,7 +215,7 @@ export default function LaudoImprimirPage() {
                 <th className="border p-0.5" colSpan={3}>Estabilidade</th>
                 <th className="border p-0.5" colSpan={2}>Fluência</th>
               </tr>
-              <tr className="bg-slate-100 text-center">
+              <tr className="bg-grp-100 text-center">
                 <th className="border p-0.5">Peso no ar</th>
                 <th className="border p-0.5">Peso na água</th>
                 <th className="border p-0.5">Volume cm³</th>
@@ -284,12 +285,12 @@ export default function LaudoImprimirPage() {
 
       {s.granulometria && (
         <section className="mb-4 doc-evitar-quebra">
-          <h2 className="font-bold border-b mb-2">Análise Granulométrica — DNER-ME 083/98</h2>
+          <h2 className="font-bold text-grp-700 border-b border-grp-600 mb-2">Análise Granulométrica — DNER-ME 083/98</h2>
           {bruto?.gran?.peso_total != null && (
             <p className="text-[9px] text-slate-600 mb-1">Peso total da amostra: <b>{fmt(bruto.gran.peso_total, 1)} g</b></p>
           )}
           <table className="w-full border mb-3">
-            <thead><tr className="bg-slate-100">
+            <thead><tr className="bg-grp-100">
               <th className="border p-1">Peneira</th><th className="border p-1">mm</th>
               <th className="border p-1">Retido acum. (g)</th><th className="border p-1">% retida acum.</th>
               <th className="border p-1">% Passando</th><th className="border p-1">Faixa de trabalho</th><th className="border p-1">Especificada</th>
@@ -313,11 +314,11 @@ export default function LaudoImprimirPage() {
       {/* ===== Teor de betume — leituras cruas + resultado ===== */}
       {teorEnsaio && (
         <section className="mb-4 doc-evitar-quebra">
-          <h2 className="font-bold border-b mb-2">Teor de betume — leituras</h2>
+          <h2 className="font-bold text-grp-700 border-b border-grp-600 mb-2">Teor de betume — leituras</h2>
           <div className="grid grid-cols-2 gap-4">
             {teorEnsaio.row.amostra_com_betume != null && (
               <table className="w-full border-collapse text-[9px] leading-tight self-start">
-                <thead><tr className="bg-slate-100 text-center"><th className="border p-0.5 text-left" colSpan={2}>Rotarex</th></tr></thead>
+                <thead><tr className="bg-grp-100 text-center"><th className="border p-0.5 text-left" colSpan={2}>Rotarex</th></tr></thead>
                 <tbody>
                   <tr><td className="border p-0.5">Amostra com betume (g)</td><td className="border p-0.5 text-center">{fmt(teorEnsaio.row.amostra_com_betume, 1)}</td></tr>
                   <tr><td className="border p-0.5">Amostra sem betume (g)</td><td className="border p-0.5 text-center">{teorEnsaio.row.amostra_sem_betume != null ? fmt(teorEnsaio.row.amostra_sem_betume, 1) : '—'}</td></tr>
@@ -328,7 +329,7 @@ export default function LaudoImprimirPage() {
             )}
             {teorEnsaio.row.rice_peso_amostra != null && (
               <table className="w-full border-collapse text-[9px] leading-tight self-start">
-                <thead><tr className="bg-slate-100 text-center"><th className="border p-0.5 text-left" colSpan={2}>Rice (AASHTO T-209)</th></tr></thead>
+                <thead><tr className="bg-grp-100 text-center"><th className="border p-0.5 text-left" colSpan={2}>Rice (AASHTO T-209)</th></tr></thead>
                 <tbody>
                   <tr><td className="border p-0.5">A — peso da amostra (g)</td><td className="border p-0.5 text-center">{fmt(teorEnsaio.row.rice_peso_amostra, 1)}</td></tr>
                   <tr><td className="border p-0.5">B — frasco + água (g)</td><td className="border p-0.5 text-center">{teorEnsaio.row.rice_frasco_agua != null ? fmt(teorEnsaio.row.rice_frasco_agua, 1) : '—'}</td></tr>
@@ -345,10 +346,10 @@ export default function LaudoImprimirPage() {
       {/* ===== Resistência à Tração Diametral (RTD) — leituras por CP ===== */}
       {rtdEnsaio && (
         <section className="mb-4 doc-evitar-quebra">
-          <h2 className="font-bold border-b mb-2">Resistência à Tração Diametral (RTD)</h2>
+          <h2 className="font-bold text-grp-700 border-b border-grp-600 mb-2">Resistência à Tração Diametral (RTD)</h2>
           <p className="text-[9px] text-slate-600 mb-1">RTD = 2·carga/(π·D·H), carga = leitura × constante da prensa, em MPa.</p>
           <table className="w-full border-collapse text-[9px] leading-tight">
-            <thead><tr className="bg-slate-100 text-center">
+            <thead><tr className="bg-grp-100 text-center">
               <th className="border p-0.5">CP</th><th className="border p-0.5">Leitura</th><th className="border p-0.5">Constante da prensa</th>
               <th className="border p-0.5">Diâmetro (cm)</th><th className="border p-0.5">Altura (cm)</th><th className="border p-0.5">RTD (MPa)</th>
             </tr></thead>
