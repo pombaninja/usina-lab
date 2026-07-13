@@ -356,14 +356,16 @@ export default function ProjetoAgregadosPage() {
             {res && !res.ok && <p className="text-amber-700 bg-amber-50 p-3 rounded">{res.problema}</p>}
 
             {res?.ok && (
-              <LineChart width={480} height={220} data={dadosGrafico}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="abertura" type="number" label={{ value: 'Abertura (mm)', position: 'insideBottom', offset: -4 }} />
-                <YAxis label={{ value: '% passa', angle: -90, position: 'insideLeft' }} />
-                <Tooltip />
-                <Legend />
-                <Line dataKey="pctPassa" name="% passa" stroke="#2563eb" strokeWidth={2} dot />
-              </LineChart>
+              <div className="flex justify-center">
+                <LineChart width={480} height={220} data={dadosGrafico}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="abertura" type="number" label={{ value: 'Abertura (mm)', position: 'insideBottom', offset: -4 }} />
+                  <YAxis label={{ value: '% passa', angle: -90, position: 'insideLeft' }} />
+                  <Tooltip />
+                  <Legend />
+                  <Line dataKey="pctPassa" name="% passa" stroke="#2563eb" strokeWidth={2} dot />
+                </LineChart>
+              </div>
             )}
           </section>
         )

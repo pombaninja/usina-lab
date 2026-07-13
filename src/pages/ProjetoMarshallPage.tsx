@@ -449,8 +449,8 @@ export default function ProjetoMarshallPage() {
             ] as const).map(([titulo, chave, cor, campo, dec]) => {
               const valorOtimo = otimoCurvas ? otimoCurvas[campo] : null
               return (
-                <div key={chave}>
-                  <h3 className="text-sm font-semibold mb-1">{titulo}</h3>
+                <div key={chave} className="flex flex-col items-center">
+                  <h3 className="text-sm font-semibold mb-1 text-center">{titulo}</h3>
                   <LineChart width={380} height={220} data={dadosGrafico}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="teor" type="number" label={{ value: 'Teor (%)', position: 'insideBottom', offset: -4 }} />

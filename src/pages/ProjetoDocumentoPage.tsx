@@ -640,8 +640,8 @@ export default function ProjetoDocumentoPage() {
             ] as const).map(([titulo, chave, cor, campo, dec]) => {
               const valorOtimo = resultadoTeorOtimo ? resultadoTeorOtimo[campo] : null
               return (
-                <div key={chave} className="doc-evitar-quebra">
-                  <h3 className="text-xs font-semibold mb-1">{titulo}</h3>
+                <div key={chave} className="doc-evitar-quebra flex flex-col items-center">
+                  <h3 className="text-xs font-semibold mb-1 text-center">{titulo}</h3>
                   <LineChart width={320} height={190} data={dadosGraficoMarshall}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="teor" type="number" tick={{ fontSize: 11 }} label={{ value: 'Teor (%)', position: 'insideBottom', offset: -4, fontSize: 11 }} />
@@ -803,8 +803,8 @@ export default function ProjetoDocumentoPage() {
             ))}</tbody>
           </table>
           {pontosGraficoRice.length > 0 && (
-            <div className="mt-3 doc-evitar-quebra">
-              <h3 className="text-xs font-semibold mb-1">Densidade máxima (DMT) × Teor</h3>
+            <div className="mt-3 doc-evitar-quebra flex flex-col items-center">
+              <h3 className="text-xs font-semibold mb-1 text-center">Densidade máxima (DMT) × Teor</h3>
               <LineChart width={480} height={220} data={pontosGraficoRice}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="teor" type="number" domain={['dataMin', 'dataMax']} tick={{ fontSize: 11 }} label={{ value: 'Teor (%)', position: 'insideBottom', offset: -4, fontSize: 11 }} />
@@ -1097,6 +1097,7 @@ export default function ProjetoDocumentoPage() {
                   </p>
                 </div>
               )}
+              <div className="flex justify-center">
               <LineChart width={640} height={260} data={dadosGraficoViscosidade}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="temperatura" type="number" domain={['dataMin', 'dataMax']} label={{ value: 'Temperatura (°C)', position: 'insideBottom', offset: -4 }} />
@@ -1114,6 +1115,7 @@ export default function ProjetoDocumentoPage() {
                 <Line dataKey="regressao" name="Regressão" stroke="#059669" strokeWidth={2} dot={false} />
                 <Line dataKey="amostra" name="Amostra" stroke="#dc2626" strokeWidth={0} dot={{ r: 5 }} />
               </LineChart>
+              </div>
             </div>
           )}
         </section>

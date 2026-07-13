@@ -237,6 +237,7 @@ export default function ProjetoRiceTeorPage() {
       {pontosGrafico.length > 0 && (
         <section className="bg-white p-4 rounded-xl shadow space-y-2">
           <h2 className="font-semibold text-lg">Densidade máxima (DMT) × Teor</h2>
+          <div className="flex justify-center">
           <LineChart width={520} height={280} data={pontosGrafico}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="teor" type="number" domain={['dataMin', 'dataMax']} label={{ value: 'Teor (%)', position: 'insideBottom', offset: -4 }} />
@@ -255,6 +256,7 @@ export default function ProjetoRiceTeorPage() {
             )}
             <Line dataKey="DMT" stroke="#65a30d" strokeWidth={2} dot />
           </LineChart>
+          </div>
           {dmtNoOtimo != null
             ? <p className="text-sm text-slate-600">DMT interpolada no teor ótimo ({fmt(teorOtimo, 2)}%): <b>{fmt(dmtNoOtimo, 3)}</b></p>
             : <p className="text-xs text-slate-500">
