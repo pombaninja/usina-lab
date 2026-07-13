@@ -10,7 +10,6 @@ import {
   calcularGranulometriaAgregado, combinarGranulometrias,
   type PeneiraRef, type DeterminacaoAgregado, type LinhaAgregado,
 } from '../lib/calculos/agregadoGranulometria'
-import { calcularPesosMoldagem, type MoldagemTeor } from '../lib/calculos/pesosMoldagem'
 import { calcularDosagemMarshall, interpolarNoTeor, interpolarValorNoTeor, type CpDosagem } from '../lib/calculos/dosagemMarshall'
 import { gmmRice } from '../lib/calculos/teorBetume'
 import { calcularRtd } from '../lib/calculos/rtd'
@@ -195,16 +194,6 @@ export default function ProjetoDocumentoPage() {
       return { ...base, linhas }
     } catch { return null }
   }, [data, combinadaBruta])
-
-  // ===== Pesos de moldagem (reaproveita pesosMoldagem.ts) =====
-  // Peso total por CP e teores não são persistidos (ver tela Moldagem): usa o padrão
-  // de 1200 g/CP da tela e os teores efetivamente moldados nos CPs Marshall.
-  const pesosMoldagem = useMemo((): MoldagemTeor[] | null => {
-    if (!combinadaBruta || !data?.marshallCps.length) return null
-    const teores = [...new Set(data.marshallCps.map(c => c.teor))].sort((a, b) => a - b)
-    if (!teores.length) return null
-    try { return calcularPesosMoldagem(combinadaBruta, 1200, teores) } catch { return null }
-  }, [combinadaBruta, data])
 
   // ===== Dosagem Marshall (reaproveita dosagemMarshall.ts) =====
   const marshallResultado = useMemo(() => {
@@ -609,46 +598,6 @@ export default function ProjetoDocumentoPage() {
               </table>
             </div>
           ))}
-        </section>
-      )}
-
-      {/* ===== 2e. Pesos de moldagem por teor — mesma calcularPesosMoldagem da tela Moldagem ===== */}
-      {!!pesosMoldagem?.length && (
-        <section className="mb-6 doc-pagina">
-          <h2 className="text-lg font-bold border-b-2 border-slate-800 mb-3">Pesos de moldagem</h2>
-          <p className="text-xs text-slate-600 mb-3">
-            Peso total por corpo de prova: <b>{fmt(pesosMoldagem[0].pesoTotal, 0)} g</b> (padrão da tela de moldagem) ·
-            teores conforme os corpos de prova moldados na dosagem Marshall · granulometria combinada calculada dos agregados.
-          </p>
-          <div className="grid grid-cols-2 gap-4">
-            {pesosMoldagem.map(res => (
-              <div key={res.teor} className="doc-evitar-quebra">
-                <h3 className="font-semibold text-xs mb-1">Teor {fmt(res.teor, 1)}% — peso total {fmt(res.pesoTotal, 0)} g</h3>
-                <table className="w-full border-collapse text-[9px] leading-tight">
-                  <thead><tr className="bg-slate-100 text-center">
-                    <th className="border p-0.5">Peneira</th><th className="border p-0.5">% ret. passante</th>
-                    <th className="border p-0.5">Peso individual (g)</th><th className="border p-0.5">Peso acumulado (g)</th>
-                  </tr></thead>
-                  <tbody>
-                    {res.linhas.map(l => (
-                      <tr key={l.peneira} className="text-center">
-                        <td className="border p-0.5 font-semibold">{l.peneira}</td>
-                        <td className="border p-0.5">{fmt(l.pctRetPassante * 100, 2)}%</td>
-                        <td className="border p-0.5">{fmt(l.pesoIndividual, 1)}</td>
-                        <td className="border p-0.5">{fmt(l.pesoAcumulado, 1)}</td>
-                      </tr>
-                    ))}
-                    <tr className="text-center bg-slate-50 font-semibold">
-                      <td className="border p-0.5">CAP</td>
-                      <td className="border p-0.5">—</td>
-                      <td className="border p-0.5">{fmt(res.pesoCap, 1)}</td>
-                      <td className="border p-0.5">{fmt(res.linhas[res.linhas.length - 1].pesoAcumulado + res.pesoCap, 1)}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            ))}
-          </div>
         </section>
       )}
 
