@@ -183,13 +183,14 @@ export default function ProjetoDocumentoPage() {
     try {
       const base = calcularGranulometria(100, leituras, faixa)
       // FAIXA DE TRABALHO do projeto = combinada ± tolerância de trabalho da especificação,
-      // clampada em 0–100 (a combinada É a curva de projeto; a faixa especificada permanece
-      // como o par próprio da norma).
+      // sempre DENTRO da faixa especificada da norma e de 0–100 (mesma semântica de
+      // granulometria.ts, o cálculo do laudo diário; a combinada É a curva de projeto e a
+      // faixa especificada permanece como o par próprio da norma).
       const tolPorPeneira = new Map(data.peneiras.map(p => [normalizarPeneira(p.peneira), p.tolerancia_trabalho ?? 0]))
       const linhas = base.linhas.map(l => {
-        if (l.espMin === undefined) return l
+        if (l.espMin === undefined || l.espMax === undefined) return l
         const tol = tolPorPeneira.get(normalizarPeneira(l.peneira)) ?? 0
-        return { ...l, trabMin: Math.max(0, l.pctPassando - tol), trabMax: Math.min(100, l.pctPassando + tol) }
+        return { ...l, trabMin: Math.max(0, l.espMin, l.pctPassando - tol), trabMax: Math.min(100, l.espMax, l.pctPassando + tol) }
       })
       return { ...base, linhas }
     } catch { return null }

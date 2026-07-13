@@ -67,11 +67,11 @@ function validarCurva(linhas: LinhaCurva[]): string | null {
     if (vistas.has(peneira)) return `Peneira repetida na curva de projeto: "${peneira}"`
     vistas.add(peneira)
     if (l.passante.trim() === '') return `Informe o % passando para a peneira "${peneira}".`
-    const p = Number(l.passante)
-    if (!Number.isFinite(p) || p < 0 || p > 100) return `% passando inválido para a peneira "${peneira}" (use um valor entre 0 e 100).`
+    const p = parseDecimal(l.passante)
+    if (p === null || !Number.isFinite(p) || p < 0 || p > 100) return `% passando inválido para a peneira "${peneira}" (use um valor entre 0 e 100).`
     if (l.tolerancia.trim() !== '') {
-      const t = Number(l.tolerancia)
-      if (!Number.isFinite(t) || t < 0) return `Tolerância inválida para a peneira "${peneira}" (use um valor ≥ 0).`
+      const t = parseDecimal(l.tolerancia)
+      if (t === null || !Number.isFinite(t) || t < 0) return `Tolerância inválida para a peneira "${peneira}" (use um valor ≥ 0).`
     }
   }
   return null
@@ -82,11 +82,11 @@ function validarComposicao(linhas: LinhaComposicao[]): string | null {
     const preenchida = l.origem.trim() || l.material.trim() || l.local.trim() || l.pct.trim() !== '' || l.densidade.trim() !== ''
     if (!preenchida) continue
     if (l.pct.trim() === '') return 'Informe o "% na mistura" para toda linha de composição preenchida.'
-    const p = Number(l.pct)
-    if (!Number.isFinite(p) || p < 0 || p > 100) return '"% na mistura" inválido na composição (use um valor entre 0 e 100).'
+    const p = parseDecimal(l.pct)
+    if (p === null || !Number.isFinite(p) || p < 0 || p > 100) return '"% na mistura" inválido na composição (use um valor entre 0 e 100).'
     if (l.densidade.trim() !== '') {
-      const dens = Number(l.densidade)
-      if (!Number.isFinite(dens) || dens <= 0) return 'Densidade inválida na composição (use um valor maior que 0).'
+      const dens = parseDecimal(l.densidade)
+      if (dens === null || !Number.isFinite(dens) || dens <= 0) return 'Densidade inválida na composição (use um valor maior que 0).'
     }
   }
   return null
@@ -341,7 +341,7 @@ export default function DosagensPage() {
         const pct = passaPorPeneira.get(normalizarPeneira(l.peneira))
         if (pct == null || !Number.isFinite(pct)) return l
         curvaMudou = true
-        return { ...l, passante: String(arred(pct, 1)) }
+        return { ...l, passante: decimalParaTexto(arred(pct, 1)) }
       })
       if (curvaMudou) {
         algumPreenchido = true
@@ -359,7 +359,7 @@ export default function DosagensPage() {
         origem: a.origem ?? '',
         material: a.material_nome.trim(),
         local: '',
-        pct: String(a.pct_na_mistura),
+        pct: decimalParaTexto(a.pct_na_mistura),
         densidade: '',
       }))
     if (composicaoVazia && linhasAgregados.length) {
@@ -429,8 +429,8 @@ export default function DosagensPage() {
     const curvaTolerancias = d.curva_tolerancias ?? {}
     setCurvaLinhas(Object.keys(curvaProjeto).map(peneira => ({
       peneira,
-      passante: String(curvaProjeto[peneira]),
-      tolerancia: curvaTolerancias[peneira] != null ? String(curvaTolerancias[peneira]) : '',
+      passante: decimalParaTexto(curvaProjeto[peneira]),
+      tolerancia: curvaTolerancias[peneira] != null ? decimalParaTexto(curvaTolerancias[peneira]) : '',
     })))
     const parametrosProjeto = (d.parametros_projeto ?? {}) as Record<string, unknown>
     setParametros(Object.fromEntries(Object.entries(parametrosProjeto).map(([k, v]) => [k, String(v)])))
@@ -443,8 +443,8 @@ export default function DosagensPage() {
         origem: String(r.origem ?? ''),
         material: String(r.material_nome ?? ''),
         local: String(r.local ?? ''),
-        pct: r.percentual != null ? String(r.percentual) : '',
-        densidade: r.densidade != null ? String(r.densidade) : '',
+        pct: r.percentual != null ? decimalParaTexto(r.percentual) : '',
+        densidade: r.densidade != null ? decimalParaTexto(r.densidade) : '',
       })))
     } else {
       setComposicaoLinhas([])
@@ -467,8 +467,8 @@ export default function DosagensPage() {
         const daCombinada = passaCombinada.get(chave)
         return {
           peneira: p.peneira,
-          passante: atual.trim() !== '' ? atual : daCombinada != null && Number.isFinite(daCombinada) ? String(arred(daCombinada, 1)) : '',
-          tolerancia: p.tolerancia_trabalho != null ? String(p.tolerancia_trabalho) : '',
+          passante: atual.trim() !== '' ? atual : daCombinada != null && Number.isFinite(daCombinada) ? decimalParaTexto(arred(daCombinada, 1)) : '',
+          tolerancia: p.tolerancia_trabalho != null ? decimalParaTexto(p.tolerancia_trabalho) : '',
         }
       })
     })
@@ -500,8 +500,9 @@ export default function DosagensPage() {
       const curva_tolerancias: Record<string, number> = {}
       for (const l of curvaLinhas) {
         const peneira = l.peneira.trim()
-        curva_projeto[peneira] = Number(l.passante)
-        if (l.tolerancia.trim() !== '') curva_tolerancias[peneira] = Number(l.tolerancia)
+        // validarCurva já garantiu números válidos (vírgula decimal aceita).
+        curva_projeto[peneira] = parseDecimal(l.passante) as number
+        if (l.tolerancia.trim() !== '') curva_tolerancias[peneira] = parseDecimal(l.tolerancia) as number
       }
 
       let parametros_projeto: Record<string, number | string> | null = null
@@ -568,8 +569,8 @@ export default function DosagensPage() {
           origem: l.origem.trim() || null,
           material_nome: l.material.trim() || null,
           local: l.local || null,
-          percentual: Number(l.pct),
-          densidade: l.densidade.trim() !== '' ? Number(l.densidade) : null,
+          percentual: parseDecimal(l.pct) as number,
+          densidade: l.densidade.trim() !== '' ? (parseDecimal(l.densidade) as number) : null,
         }))
         const ins = await supabase.from('dosagem_composicao').insert(rows)
         if (ins.error) throw ins.error
@@ -699,10 +700,10 @@ export default function DosagensPage() {
                     <tr key={i}>
                       <td className="pr-2 py-1"><input className="w-full border rounded p-1" value={l.peneira}
                         onChange={e => alterarLinha(i, 'peneira', e.target.value)} /></td>
-                      <td className="pr-2 py-1"><input className="w-full border rounded p-1" type="number" step="any" min="0" max="100" value={l.passante}
-                        onChange={e => alterarLinha(i, 'passante', e.target.value)} /></td>
-                      <td className="pr-2 py-1"><input className="w-full border rounded p-1" type="number" step="any" min="0" value={l.tolerancia}
-                        onChange={e => alterarLinha(i, 'tolerancia', e.target.value)} /></td>
+                      <td className="pr-2 py-1"><input className="w-full border rounded p-1" type="text" inputMode="decimal" value={l.passante}
+                        onChange={e => alterarLinha(i, 'passante', sanitizarDecimal(e.target.value))} /></td>
+                      <td className="pr-2 py-1"><input className="w-full border rounded p-1" type="text" inputMode="decimal" value={l.tolerancia}
+                        onChange={e => alterarLinha(i, 'tolerancia', sanitizarDecimal(e.target.value))} /></td>
                       <td className="py-1"><button type="button" className="text-red-600 px-2" onClick={() => setCurvaLinhas(curvaLinhas.filter((_, idx) => idx !== i))}>×</button></td>
                     </tr>
                   ))}
@@ -744,10 +745,10 @@ export default function DosagensPage() {
                               <option value="silo_quente">Silo quente</option>
                             </select>
                           </td>
-                          <td className="pr-2 py-1"><input className="w-full border rounded p-1" type="number" step="any" min="0" max="100" value={l.pct}
-                            onChange={e => alterarComposicao(i, 'pct', e.target.value)} /></td>
-                          <td className="pr-2 py-1"><input className="w-full border rounded p-1" type="number" step="any" min="0" value={l.densidade}
-                            onChange={e => alterarComposicao(i, 'densidade', e.target.value)} /></td>
+                          <td className="pr-2 py-1"><input className="w-full border rounded p-1" type="text" inputMode="decimal" value={l.pct}
+                            onChange={e => alterarComposicao(i, 'pct', sanitizarDecimal(e.target.value))} /></td>
+                          <td className="pr-2 py-1"><input className="w-full border rounded p-1" type="text" inputMode="decimal" value={l.densidade}
+                            onChange={e => alterarComposicao(i, 'densidade', sanitizarDecimal(e.target.value))} /></td>
                           <td className="py-1"><button type="button" className="text-red-600 px-2" onClick={() => setComposicaoLinhas(composicaoLinhas.filter((_, idx) => idx !== i))}>×</button></td>
                         </tr>
                       ))}

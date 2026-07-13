@@ -174,8 +174,9 @@ export default function ProjetoAgregadosPage() {
   }, [agregados, resultados])
 
   // Linhas para o gráfico padrão de granulometria (mesmo GraficoGranulometria dos laudos):
-  // faixa de TRABALHO = combinada ± tolerância de trabalho da especificação (clampada em
-  // 0–100, por peneira); faixa ESPECIFICADA = % passante mín/máx da norma.
+  // faixa de TRABALHO = combinada ± tolerância de trabalho da especificação, sempre DENTRO
+  // da faixa especificada da norma (mesma semântica de granulometria.ts, o cálculo do laudo
+  // diário) e de 0–100; faixa ESPECIFICADA = % passante mín/máx da norma.
   const linhasCombinada = useMemo((): LinhaGranulometria[] | null => {
     if (!combinada) return null
     return combinada.map(l => {
@@ -187,8 +188,8 @@ export default function ProjetoAgregadosPage() {
       if (lim) {
         linha.espMin = lim.min
         linha.espMax = lim.max
-        linha.trabMin = Math.max(0, l.pctPassa - lim.tol)
-        linha.trabMax = Math.min(100, l.pctPassa + lim.tol)
+        linha.trabMin = Math.max(0, lim.min, l.pctPassa - lim.tol)
+        linha.trabMax = Math.min(100, lim.max, l.pctPassa + lim.tol)
       }
       return linha
     })
@@ -407,8 +408,9 @@ export default function ProjetoAgregadosPage() {
               <tbody>{combinada.map(l => {
                 const lim = limitesPorPeneira.get(l.peneira)
                 const conforme = lim ? l.pctPassa >= lim.min - 1e-9 && l.pctPassa <= lim.max + 1e-9 : null
-                // Faixa de trabalho = combinada ± tolerância de trabalho da especificação, clampada em 0–100.
-                const trab = lim ? { min: Math.max(0, l.pctPassa - lim.tol), max: Math.min(100, l.pctPassa + lim.tol) } : null
+                // Faixa de trabalho = combinada ± tolerância de trabalho da especificação, sempre
+                // DENTRO da faixa da norma e de 0–100 (mesmos valores de linhasCombinada/gráfico).
+                const trab = lim ? { min: Math.max(0, lim.min, l.pctPassa - lim.tol), max: Math.min(100, lim.max, l.pctPassa + lim.tol) } : null
                 return (
                   <tr key={l.peneira} className="border-b">
                     <td className="p-2 font-semibold">{l.peneira}</td>
