@@ -678,7 +678,8 @@ export default function ProjetoDocumentoPage() {
           </table>
           <p className="mb-3"><b>Teor ótimo de projeto:</b> {d.teor_otimo != null ? `${fmt(d.teor_otimo, 2)}%` : '—'}
             {marshallResultado!.teorOtimoSugerido != null && ` (sugerido pelo cruzamento em 4% de vazios: ${fmt(marshallResultado!.teorOtimoSugerido, 2)}%)`}</p>
-          <div className="grid grid-cols-2 gap-4">
+          {/* justify-items-center: cada gráfico centrado na própria célula da grade */}
+          <div className="grid grid-cols-2 gap-4 justify-items-center">
             {([
               ['Densidade aparente × teor', 'Densidade', '#dc2626', 'densidadeAparente', 3],
               ['Vazios (%) × teor', 'Vazios', '#2563eb', 'vazios', 2],

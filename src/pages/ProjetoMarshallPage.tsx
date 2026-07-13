@@ -4,7 +4,7 @@ import { useQuery, useMutation } from '@tanstack/react-query'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Legend, Tooltip, ReferenceLine, ReferenceDot } from 'recharts'
 import { supabase } from '../lib/supabase'
 import { useAuth, podeNoModulo } from '../lib/auth'
-import { calcularDosagemMarshall, interpolarNoTeor, type CpDosagem } from '../lib/calculos/dosagemMarshall'
+import { calcularDosagemMarshall, interpolarNoTeor, type CpDosagem, type CpDetalhe } from '../lib/calculos/dosagemMarshall'
 import { gmmRice } from '../lib/calculos/teorBetume'
 import { fmt } from '../lib/formato'
 
@@ -219,6 +219,17 @@ export default function ProjetoMarshallPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resultado?.ok && resultado.teorOtimoSugerido])
 
+  // Parâmetros calculados AO VIVO por CP (teor|cp → detalhe) para exibir na própria
+  // tabela de lançamento enquanto o lançador digita — mesma fonte (resultado.detalhes)
+  // da tabela de resultados detalhados abaixo.
+  const detalhePorTeorCp = useMemo(() => {
+    const m = new Map<string, CpDetalhe>()
+    if (resultado?.ok) {
+      for (const d of resultado.detalhes) for (const c of d.cps) m.set(`${d.teor}|${c.cp}`, c)
+    }
+    return m
+  }, [resultado])
+
   const dadosGrafico = resultado?.ok
     ? resultado.pontos.map(p => ({
         teor: p.teor, Densidade: p.densidadeAparente, Vazios: p.vazios, Estabilidade: p.estabilidade,
@@ -344,12 +355,20 @@ export default function ProjetoMarshallPage() {
                 ? <p className="text-xs text-lime-700">Rice (DMT) do RICE-TEOR: {fmt(dmt, 3)} — preenchida automaticamente nos 3 CPs (editável).</p>
                 : null
             })()}
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead><tr className="text-left border-b">
                 <th className="p-2">CP</th><th>Peso ar (g)</th><th>Peso imerso (g)</th><th>Rice teórica</th>
                 <th>Leitura estab.</th><th>Fator (vazio = tabela)</th><th>Altura (cm)</th><th>Leitura fluência ({fluenciaUnidade === 'unidades' ? 'unid.' : 'mm'})</th>
+                {/* Colunas CALCULADAS ao vivo (somente leitura) */}
+                {(['Volume', 'Dens. apar.', 'V.V (%)', 'V.C.B.', 'V.A.M.', 'R.B.V.', 'Estab. corrig. (kg)', 'Fluência (mm)'] as const).map(h => (
+                  <th key={h} className="bg-slate-50 text-slate-600 text-xs font-semibold px-2">{h}</th>
+                ))}
               </tr></thead>
-              <tbody>{t.cps.map((c, iCp) => (
+              <tbody>{t.cps.map((c, iCp) => {
+                // Detalhe calculado ao vivo deste CP (— enquanto os campos não fecham o cálculo).
+                const det = detalhePorTeorCp.get(`${n(t.teor)}|${iCp + 1}`)
+                return (
                 <tr key={iCp} className="border-b">
                   <td className="p-2 font-semibold">{iCp + 1}</td>
                   {(['pesoAr', 'pesoImerso', 'riceTeorica', 'leituraEstab', 'fator', 'altura', 'fluencia'] as const).map(campo => {
@@ -368,9 +387,24 @@ export default function ProjetoMarshallPage() {
                         onChange={e => alterarCp(iTeor, iCp, campo, e.target.value)} /></td>
                     )
                   })}
+                  {/* Parâmetros calculados ao vivo por CP — visual distinto de campo editável */}
+                  {([
+                    det ? fmt(det.volume, 1) : '—',
+                    det ? fmt(det.densidadeAparente, 3) : '—',
+                    det ? fmt(det.vazios, 1) : '—',
+                    det ? fmt(det.vcb, 1) : '—',
+                    det ? fmt(det.vam, 1) : '—',
+                    det ? fmt(det.rbv, 1) : '—',
+                    det ? fmt(det.corrig, 0) : '—',
+                    det ? fmt(det.fluenciaMm, 1) : '—',
+                  ]).map((v, iCol) => (
+                    <td key={iCol} className="bg-slate-50 text-slate-700 font-medium text-xs px-2 whitespace-nowrap">{v}</td>
+                  ))}
                 </tr>
-              ))}</tbody>
+                )
+              })}</tbody>
             </table>
+            </div>
             {t.cps.some(c => c.fator !== '' && (n(c.fator) < 0.5 || n(c.fator) > 2)) && (
               <p className="text-red-600 text-sm">Fator de correção fora da faixa da tabela DER (0,76–1,46) — confira se não foi digitado outro dado no campo. Deixe o fator vazio para o sistema buscar na tabela pelo volume do CP.</p>
             )}
@@ -403,7 +437,8 @@ export default function ProjetoMarshallPage() {
             ))}</tbody>
           </table>
 
-          <div className="grid grid-cols-2 gap-6">
+          {/* justify-items-center + mx-auto: cada gráfico centrado na célula e grade centrada na página */}
+          <div className="grid grid-cols-2 gap-6 justify-items-center max-w-4xl mx-auto">
             {([
               ['Densidade aparente × teor', 'Densidade', '#dc2626', 'densidadeAparente', 3],
               ['Vazios (%) × teor', 'Vazios', '#2563eb', 'vazios', 2],
