@@ -1,5 +1,11 @@
-import { Link, Outlet, Navigate } from 'react-router-dom'
+import { NavLink, Outlet, Navigate } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
+
+// Estilo dos itens do menu: azul GRP no ativo/hover, cinza-marrom GRP no repouso
+function navClasse({ isActive }: { isActive: boolean }) {
+  return 'px-3 py-1.5 rounded-md text-sm font-medium transition-colors ' +
+    (isActive ? 'bg-grp-100 text-grp-700' : 'text-grp-ink hover:bg-grp-50 hover:text-grp-700')
+}
 
 export default function Layout() {
   const { user, carregando, perfis, sair } = useAuth()
@@ -7,22 +13,23 @@ export default function Layout() {
   if (!user) return <Navigate to="/login" replace />
   return (
     <div className="min-h-screen bg-slate-50">
-      <nav className="bg-slate-900 text-white px-6 py-3 flex gap-6 items-center print:hidden">
-        <span className="font-bold">GRP Lab</span>
+      <nav className="bg-white border-b border-slate-200 shadow-sm px-4 sm:px-6 py-2.5 flex gap-1 items-center print:hidden">
+        <img src="/logo-grp.png" alt="Grupo Ribeiro Porto" className="h-9 w-auto" />
+        <span className="font-bold text-grp-700 mr-4 whitespace-nowrap">Usina &amp; Laboratório</span>
         {perfis['ensaios_usina'] && <>
-          <Link to="/ensaios">Ensaios</Link>
-          <Link to="/laudos">Laudos</Link>
-          <Link to="/dosagens">Projetos</Link>
+          <NavLink to="/ensaios" className={navClasse}>Ensaios</NavLink>
+          <NavLink to="/laudos" className={navClasse}>Laudos</NavLink>
+          <NavLink to="/dosagens" className={navClasse}>Projetos</NavLink>
         </>}
         {perfis['insumos'] && <>
-          <Link to="/insumos">Insumos</Link>
-          <Link to="/insumos/entradas">Entradas</Link>
-          <Link to="/insumos/historico">Histórico</Link>
+          <NavLink to="/insumos" end className={navClasse}>Insumos</NavLink>
+          <NavLink to="/insumos/entradas" className={navClasse}>Entradas</NavLink>
+          <NavLink to="/insumos/historico" className={navClasse}>Histórico</NavLink>
         </>}
-        {perfis['cadastros'] === 'admin' && <Link to="/cadastros">Cadastros</Link>}
-        <button onClick={sair} className="ml-auto text-slate-300">Sair</button>
+        {perfis['cadastros'] === 'admin' && <NavLink to="/cadastros" className={navClasse}>Cadastros</NavLink>}
+        <button onClick={sair} className="ml-auto text-sm font-medium text-grp-ink hover:text-grp-700">Sair</button>
       </nav>
-      <main className="p-6 max-w-6xl mx-auto"><Outlet /></main>
+      <main className="p-6 max-w-6xl mx-auto px-4 sm:px-6"><Outlet /></main>
     </div>
   )
 }

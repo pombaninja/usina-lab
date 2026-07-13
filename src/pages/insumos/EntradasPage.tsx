@@ -137,10 +137,10 @@ export default function EntradasPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Entradas de insumos</h1>
+      <h1 className="text-2xl font-bold text-grp-700">Entradas de insumos</h1>
 
       <form onSubmit={e => { e.preventDefault(); salvar.mutate() }}
-            className="bg-white p-4 rounded-xl shadow grid grid-cols-3 gap-3">
+            className="bg-white p-4 rounded-xl shadow-sm grid grid-cols-3 gap-3">
         <label className="text-sm">Data
           <input className={inp} type="date" value={data} onChange={e => setData(e.target.value)} /></label>
         <label className="text-sm">Tanque *
@@ -165,13 +165,13 @@ export default function EntradasPage() {
         {erro && <p className="text-red-600 text-sm col-span-3">{erro}</p>}
         {sucesso && <p className="text-green-700 font-semibold text-sm col-span-3">Entrada salva</p>}
 
-        <button className="bg-blue-700 text-white rounded px-6 py-3 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+        <button className="bg-grp-600 hover:bg-grp-700 text-white rounded px-6 py-3 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={salvar.isPending} type="submit">
           {salvar.isPending ? 'Salvando…' : 'Registrar entrada'}
         </button>
       </form>
 
-      <section className="bg-white p-4 rounded-xl shadow overflow-x-auto">
+      <section className="bg-white p-4 rounded-xl shadow-sm overflow-x-auto">
         <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
           <h2 className="font-semibold">Entradas do mês</h2>
           <label className="text-sm">Mês

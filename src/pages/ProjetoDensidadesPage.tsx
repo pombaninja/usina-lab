@@ -298,15 +298,15 @@ export default function ProjetoDensidadesPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Densidades — {dosagem?.nome ?? '…'}</h1>
+        <h1 className="text-2xl font-bold text-grp-700">Densidades — {dosagem?.nome ?? '…'}</h1>
         <button className="text-sm text-blue-700 underline" onClick={() => nav('/dosagens')}>Voltar aos projetos</button>
       </div>
       {!podeEditar && <p className="text-sm text-slate-500">Somente avaliador ou administrador edita as densidades. Exibindo em modo leitura.</p>}
 
       {/* ===== Agregado graúdo ===== */}
-      <section className="bg-white p-4 rounded-xl shadow space-y-4">
+      <section className="bg-white p-4 rounded-xl shadow-sm space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="font-semibold text-lg">Agregado graúdo — DNER-ME 081/98</h2>
+          <h2 className="font-semibold text-lg text-grp-700">Agregado graúdo — DNER-ME 081/98</h2>
           {podeEditar && <button type="button" className="text-sm border rounded px-3 py-1" onClick={adicionarGraudo}>+ Adicionar agregado</button>}
         </div>
         <p className="text-sm text-slate-500">A = peso ao ar seco · B = peso ao ar saturado superfície seca · C = peso imerso (g).</p>
@@ -371,9 +371,9 @@ export default function ProjetoDensidadesPage() {
       </section>
 
       {/* ===== Agregado miúdo ===== */}
-      <section className="bg-white p-4 rounded-xl shadow space-y-4">
+      <section className="bg-white p-4 rounded-xl shadow-sm space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="font-semibold text-lg">Agregado miúdo — picnômetro (DNER-ME 084/95)</h2>
+          <h2 className="font-semibold text-lg text-grp-700">Agregado miúdo — picnômetro (DNER-ME 084/95)</h2>
           {podeEditar && <button type="button" className="text-sm border rounded px-3 py-1" onClick={adicionarMiudo}>+ Adicionar agregado</button>}
         </div>
         <p className="text-sm text-slate-500">
@@ -441,8 +441,8 @@ export default function ProjetoDensidadesPage() {
       </section>
 
       {/* ===== Massa específica real média da mistura ===== */}
-      <section className="bg-white p-4 rounded-xl shadow space-y-3">
-        <h2 className="font-semibold text-lg">Massa específica real média da mistura (MERM)</h2>
+      <section className="bg-white p-4 rounded-xl shadow-sm space-y-3">
+        <h2 className="font-semibold text-lg text-grp-700">Massa específica real média da mistura (MERM)</h2>
         <p className="text-sm text-slate-500">
           MERM = 100 / Σ (% do agregado na composição / densidade real do agregado). Os percentuais vêm da composição
           do projeto (aba "Composição/Moldagem") e a densidade real de cada material é buscada pelo nome nos agregados
@@ -473,7 +473,7 @@ export default function ProjetoDensidadesPage() {
 
       {podeEditar && (
         <div className="flex items-center gap-3">
-          <button className="bg-blue-700 text-white rounded px-6 py-3 font-semibold disabled:opacity-50" disabled={salvar.isPending}
+          <button className="bg-grp-600 hover:bg-grp-700 text-white rounded px-6 py-3 font-semibold disabled:opacity-50" disabled={salvar.isPending}
             onClick={() => salvar.mutate()}>
             Salvar densidades
           </button>

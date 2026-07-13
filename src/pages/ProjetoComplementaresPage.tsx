@@ -162,15 +162,15 @@ export default function ProjetoComplementaresPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Ensaios complementares — {dosagem?.nome ?? '…'}</h1>
+        <h1 className="text-2xl font-bold text-grp-700">Ensaios complementares — {dosagem?.nome ?? '…'}</h1>
         <button className="text-sm text-blue-700 underline" onClick={() => nav('/dosagens')}>Voltar aos projetos</button>
       </div>
       {!podeEditar && <p className="text-sm text-slate-500">Somente avaliador ou administrador edita os ensaios complementares. Exibindo em modo leitura.</p>}
 
       {/* ===== Equivalente de areia ===== */}
-      <section className="bg-white p-4 rounded-xl shadow space-y-4">
+      <section className="bg-white p-4 rounded-xl shadow-sm space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="font-semibold text-lg">Equivalente de areia — DNER-ME 054/94</h2>
+          <h2 className="font-semibold text-lg text-grp-700">Equivalente de areia — DNER-ME 054/94</h2>
           {podeEditar && <button type="button" className="text-sm border rounded px-3 py-1" onClick={adicionarDet}>+ Determinação</button>}
         </div>
         <p className="text-sm text-slate-500">
@@ -215,8 +215,8 @@ export default function ProjetoComplementaresPage() {
       </section>
 
       {/* ===== Adesividade ===== */}
-      <section className="bg-white p-4 rounded-xl shadow space-y-3">
-        <h2 className="font-semibold text-lg">Adesividade — DNER-ME 78/94</h2>
+      <section className="bg-white p-4 rounded-xl shadow-sm space-y-3">
+        <h2 className="font-semibold text-lg text-grp-700">Adesividade — DNER-ME 78/94</h2>
         <div className="grid grid-cols-2 gap-3">
           <label className="text-sm">Resultado
             <select className={inp} value={adesividade} disabled={!podeEditar} onChange={e => setAdesividade(e.target.value)}>
@@ -231,8 +231,8 @@ export default function ProjetoComplementaresPage() {
       </section>
 
       {/* ===== Durabilidade ao sulfato de sódio ===== */}
-      <section className="bg-white p-4 rounded-xl shadow space-y-3">
-        <h2 className="font-semibold text-lg">Durabilidade ao sulfato de sódio — DNER-ME 089/94</h2>
+      <section className="bg-white p-4 rounded-xl shadow-sm space-y-3">
+        <h2 className="font-semibold text-lg text-grp-700">Durabilidade ao sulfato de sódio — DNER-ME 089/94</h2>
         <label className="text-sm block max-w-xs">Perda (%)
           <input className={inp} type="number" step="any" min="0" value={durabilidade} disabled={!podeEditar}
             onChange={e => setDurabilidade(e.target.value)} /></label>
@@ -240,7 +240,7 @@ export default function ProjetoComplementaresPage() {
 
       {podeEditar && (
         <div className="flex items-center gap-3">
-          <button className="bg-blue-700 text-white rounded px-6 py-3 font-semibold disabled:opacity-50" disabled={salvar.isPending}
+          <button className="bg-grp-600 hover:bg-grp-700 text-white rounded px-6 py-3 font-semibold disabled:opacity-50" disabled={salvar.isPending}
             onClick={() => salvar.mutate()}>
             Salvar ensaios complementares
           </button>

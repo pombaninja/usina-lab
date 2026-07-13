@@ -40,10 +40,10 @@ export default function EnsaiosListaPage() {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Ensaios CAUQ</h1>
-        <Link to="/ensaios/novo" className="bg-blue-700 text-white rounded px-4 py-2">+ Novo Ensaio</Link>
+        <h1 className="text-2xl font-bold text-grp-700">Ensaios CAUQ</h1>
+        <Link to="/ensaios/novo" className="bg-grp-600 hover:bg-grp-700 text-white rounded px-4 py-2">+ Novo Ensaio</Link>
       </div>
-      <table className="w-full bg-white rounded-xl shadow text-sm">
+      <table className="w-full bg-white rounded-xl shadow-sm text-sm">
         <thead><tr className="text-left border-b"><th className="p-3">Data</th><th>Período</th><th>Dosagem</th><th>Cliente</th><th>Situação</th><th /></tr></thead>
         <tbody>{(ensaios ?? []).map((e: EnsaioLinha) => (
           <tr key={e.id} className="border-b hover:bg-slate-50">

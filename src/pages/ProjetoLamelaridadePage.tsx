@@ -204,7 +204,7 @@ export default function ProjetoLamelaridadePage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Índice de Lamelaridade — {dosagem?.nome ?? '…'}</h1>
+        <h1 className="text-2xl font-bold text-grp-700">Índice de Lamelaridade — {dosagem?.nome ?? '…'}</h1>
         <button className="text-sm text-blue-700 underline" onClick={() => nav('/dosagens')}>Voltar aos projetos</button>
       </div>
       {!podeEditar && <p className="text-sm text-slate-500">Somente avaliador ou administrador edita o Índice de Lamelaridade. Exibindo em modo leitura.</p>}
@@ -216,14 +216,14 @@ export default function ProjetoLamelaridadePage() {
       </p>
 
       <div className="flex items-center justify-between">
-        <h2 className="font-semibold text-lg">Materiais / amostras</h2>
+        <h2 className="font-semibold text-lg text-grp-700">Materiais / amostras</h2>
         {podeEditar && <button type="button" className="text-sm border rounded px-3 py-1" onClick={adicionar}>+ Adicionar material</button>}
       </div>
 
       {materiais.map((m, iM) => {
         const res = resultados[iM]
         return (
-          <section key={m.id ?? `novo-${iM}`} className="bg-white p-4 rounded-xl shadow space-y-3">
+          <section key={m.id ?? `novo-${iM}`} className="bg-white p-4 rounded-xl shadow-sm space-y-3">
             <div className="flex items-end justify-between gap-3 flex-wrap">
               <label className="text-sm flex-1 min-w-48">Material
                 <input className={inp} value={m.materialNome} disabled={!podeEditar}
@@ -323,7 +323,7 @@ export default function ProjetoLamelaridadePage() {
 
       {podeEditar && (
         <div className="flex items-center gap-3">
-          <button className="bg-blue-700 text-white rounded px-6 py-3 font-semibold disabled:opacity-50" disabled={salvar.isPending}
+          <button className="bg-grp-600 hover:bg-grp-700 text-white rounded px-6 py-3 font-semibold disabled:opacity-50" disabled={salvar.isPending}
             onClick={() => salvar.mutate()}>
             Salvar Índice de Lamelaridade
           </button>

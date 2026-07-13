@@ -170,7 +170,7 @@ export default function ProjetoRiceTeorPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Ensaio RICE-TEOR (Rice/DMT por teor) — {dosagem?.nome ?? '…'}</h1>
+        <h1 className="text-2xl font-bold text-grp-700">Ensaio RICE-TEOR (Rice/DMT por teor) — {dosagem?.nome ?? '…'}</h1>
         <button className="text-sm text-blue-700 underline" onClick={() => nav('/dosagens')}>Voltar aos projetos</button>
       </div>
       {!podeEditar && <p className="text-sm text-slate-500">Somente avaliador ou administrador edita o ensaio RICE-TEOR. Exibindo em modo leitura.</p>}
@@ -181,11 +181,11 @@ export default function ProjetoRiceTeorPage() {
       </p>
 
       <div className="flex items-center justify-between">
-        <h2 className="font-semibold text-lg">Teores</h2>
+        <h2 className="font-semibold text-lg text-grp-700">Teores</h2>
         {podeEditar && <button type="button" className="text-sm border rounded px-3 py-1" onClick={adicionar}>+ Adicionar teor</button>}
       </div>
 
-      <div className="overflow-x-auto bg-white p-4 rounded-xl shadow">
+      <div className="overflow-x-auto bg-white p-4 rounded-xl shadow-sm">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left border-b">
@@ -235,8 +235,8 @@ export default function ProjetoRiceTeorPage() {
       </div>
 
       {pontosGrafico.length > 0 && (
-        <section className="bg-white p-4 rounded-xl shadow space-y-2">
-          <h2 className="font-semibold text-lg">Densidade máxima (DMT) × Teor</h2>
+        <section className="bg-white p-4 rounded-xl shadow-sm space-y-2">
+          <h2 className="font-semibold text-lg text-grp-700">Densidade máxima (DMT) × Teor</h2>
           <div className="flex justify-center">
           <LineChart width={520} height={280} data={pontosGrafico}>
             <CartesianGrid strokeDasharray="3 3" />
@@ -269,7 +269,7 @@ export default function ProjetoRiceTeorPage() {
 
       {podeEditar && (
         <div className="flex items-center gap-3">
-          <button className="bg-blue-700 text-white rounded px-6 py-3 font-semibold disabled:opacity-50" disabled={salvar.isPending}
+          <button className="bg-grp-600 hover:bg-grp-700 text-white rounded px-6 py-3 font-semibold disabled:opacity-50" disabled={salvar.isPending}
             onClick={() => salvar.mutate()}>
             Salvar ensaio RICE-TEOR
           </button>

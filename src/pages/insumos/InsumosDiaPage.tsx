@@ -189,7 +189,7 @@ export default function InsumosDiaPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-2xl font-bold">Insumos do dia</h1>
+        <h1 className="text-2xl font-bold text-grp-700">Insumos do dia</h1>
         <label className="text-sm">Data
           <input type="date" className="border rounded p-2 ml-2" value={data} onChange={e => setData(e.target.value)} /></label>
         {calc && !calc.ok && (
@@ -197,14 +197,14 @@ export default function InsumosDiaPage() {
         )}
       </div>
 
-      <section className="bg-white p-4 rounded-xl shadow grid grid-cols-3 gap-3">
+      <section className="bg-white p-4 rounded-xl shadow-sm grid grid-cols-3 gap-3">
         <label className="text-sm">Produção (ton)
           <input className={inp} type="number" step="any" value={producaoTon} onChange={e => setProducaoTon(e.target.value)} /></label>
         <label className="text-sm col-span-2">Descrição da produção
           <input className={inp} value={producaoDescricao} onChange={e => setProducaoDescricao(e.target.value)} /></label>
       </section>
 
-      <section className="bg-white p-4 rounded-xl shadow overflow-x-auto">
+      <section className="bg-white p-4 rounded-xl shadow-sm overflow-x-auto">
         <h2 className="font-semibold mb-2">Tanques</h2>
         <table className="w-full text-sm">
           <thead><tr className="text-left border-b">
@@ -260,7 +260,7 @@ export default function InsumosDiaPage() {
       </section>
 
       {calc?.ok && (
-        <section className="bg-white p-4 rounded-xl shadow">
+        <section className="bg-white p-4 rounded-xl shadow-sm">
           <h2 className="font-semibold mb-2">Indicadores do dia</h2>
           <p className="text-sm text-slate-700">
             CAP deslocado: <b>{fmt(calc.ind.capDeslocadoTon, 3)} t</b> · CAP/ton: <b>{fmt(calc.ind.capPorTon, 4)}</b> ·
@@ -276,7 +276,7 @@ export default function InsumosDiaPage() {
       {erro && <p className="text-red-600">{erro}</p>}
       {sucesso && <p className="text-green-700 font-semibold">Lançamento salvo</p>}
       {!calc?.ok && <p className="text-amber-700">Preencha as leituras dos tanques antes de salvar</p>}
-      <button className="bg-blue-700 text-white rounded px-6 py-3 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+      <button className="bg-grp-600 hover:bg-grp-700 text-white rounded px-6 py-3 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={!calc?.ok || salvar.isPending} onClick={() => salvar.mutate()}>
         {salvar.isPending ? 'Salvando…' : 'Salvar lançamento'}
       </button>

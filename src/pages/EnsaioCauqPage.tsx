@@ -406,7 +406,7 @@ export default function EnsaioCauqPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">
+        <h1 className="text-2xl font-bold text-grp-700">
           {editando
             ? `Editar Ensaio de ${dataEnsaio ? new Date(dataEnsaio + 'T12:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '…'}`
             : 'Novo Ensaio CAUQ'}
@@ -423,7 +423,7 @@ export default function EnsaioCauqPage() {
         )}
       </div>
 
-      <section className="bg-white p-4 rounded-xl shadow grid grid-cols-4 gap-3">
+      <section className="bg-white p-4 rounded-xl shadow-sm grid grid-cols-4 gap-3">
         <label className="text-sm col-span-2">Dosagem / Faixa *
           <select className={inp} value={cab.dosagem_id} onChange={e => setCab({ ...cab, dosagem_id: e.target.value })}>
             <option value="">—</option>
@@ -447,7 +447,7 @@ export default function EnsaioCauqPage() {
         <label className="text-sm">Correção de fluência<input className={inp} type="number" step="any" value={correcaoFluencia} onChange={e => setCorrecaoFluencia(e.target.value)} /></label>
       </section>
 
-      <section className="bg-white p-4 rounded-xl shadow">
+      <section className="bg-white p-4 rounded-xl shadow-sm">
         <h2 className="font-semibold mb-2">Marshall — corpos de prova</h2>
         <table className="w-full text-sm">
           <thead><tr className="text-left border-b">
@@ -499,7 +499,7 @@ export default function EnsaioCauqPage() {
         )}
       </section>
 
-      <section className="bg-white p-4 rounded-xl shadow">
+      <section className="bg-white p-4 rounded-xl shadow-sm">
         <h2 className="font-semibold mb-2">Granulometria (DNER-ME 083/98)</h2>
         <label className="text-sm">Peso total (g)
           <input className="border rounded p-2 ml-2 w-32" type="number" step="any" value={gran.pesoTotal}
@@ -523,7 +523,7 @@ export default function EnsaioCauqPage() {
         </table>
       </section>
 
-      <section className="bg-white p-4 rounded-xl shadow grid grid-cols-2 gap-6">
+      <section className="bg-white p-4 rounded-xl shadow-sm grid grid-cols-2 gap-6">
         <div>
           <h2 className="font-semibold mb-2">Teor de Betume — Rotarex</h2>
           <div className="space-y-2 text-sm">
@@ -545,7 +545,7 @@ export default function EnsaioCauqPage() {
         </div>
       </section>
 
-      <section className="bg-white p-4 rounded-xl shadow">
+      <section className="bg-white p-4 rounded-xl shadow-sm">
         <h2 className="font-semibold mb-2">Resistência à Tração Diametral (opcional)</h2>
         <table className="text-sm">
           <thead><tr className="text-left border-b"><th className="p-2">CP</th><th>Leitura</th><th>Diâmetro (cm)</th><th>Altura (cm)</th><th>RTD (MPa)</th></tr></thead>
@@ -564,7 +564,7 @@ export default function EnsaioCauqPage() {
       </section>
 
       {calc?.ok && calc.aval.avaliacoes.length > 0 && (
-        <section className="bg-white p-4 rounded-xl shadow">
+        <section className="bg-white p-4 rounded-xl shadow-sm">
           <h2 className="font-semibold mb-2">Verificação contra a especificação</h2>
           <table className="w-full text-sm">
             <thead><tr className="text-left border-b"><th className="p-2">Parâmetro</th><th>Obtido</th><th>Especificado</th><th>Situação</th></tr></thead>
@@ -584,9 +584,9 @@ export default function EnsaioCauqPage() {
       {erro && <p className="text-red-600">{erro}</p>}
       {!calc?.ok && <p className="text-amber-700">Preencha os dados do ensaio antes de salvar</p>}
       {editando
-        ? <button className="bg-blue-700 text-white rounded px-6 py-3 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+        ? <button className="bg-grp-600 hover:bg-grp-700 text-white rounded px-6 py-3 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={!calc?.ok || salvarEdicao.isPending} onClick={() => salvarEdicao.mutate()}>Salvar Alterações</button>
-        : <button className="bg-blue-700 text-white rounded px-6 py-3 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+        : <button className="bg-grp-600 hover:bg-grp-700 text-white rounded px-6 py-3 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={!calc?.ok || salvar.isPending} onClick={() => salvar.mutate()}>Salvar Ensaio</button>}
     </div>
   )

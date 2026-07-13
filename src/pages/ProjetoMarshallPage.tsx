@@ -311,12 +311,12 @@ export default function ProjetoMarshallPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Dosagem Marshall — {dosagem?.nome ?? '…'}</h1>
+        <h1 className="text-2xl font-bold text-grp-700">Dosagem Marshall — {dosagem?.nome ?? '…'}</h1>
         <button className="text-sm text-blue-700 underline" onClick={() => nav('/dosagens')}>Voltar aos projetos</button>
       </div>
       {!podeEditar && <p className="text-sm text-slate-500">Somente avaliador ou administrador edita a dosagem Marshall. Exibindo em modo leitura.</p>}
 
-      <section className="bg-white p-4 rounded-xl shadow grid grid-cols-3 gap-3">
+      <section className="bg-white p-4 rounded-xl shadow-sm grid grid-cols-3 gap-3">
         <label className="text-sm">Densidade real do CAP (g/cm³)
           <input className={inp} type="number" step="any" value={densidadeRealCap} disabled={!podeEditar}
             onChange={e => setDensidadeRealCap(e.target.value)} /></label>
@@ -334,12 +334,12 @@ export default function ProjetoMarshallPage() {
 
       <section className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="font-semibold text-lg">Teores ensaiados</h2>
+          <h2 className="font-semibold text-lg text-grp-700">Teores ensaiados</h2>
           {podeEditar && <button type="button" className="text-sm border rounded px-3 py-1" onClick={adicionarTeor}>+ Adicionar teor</button>}
         </div>
 
         {teores.map((t, iTeor) => (
-          <div key={iTeor} className="bg-white p-4 rounded-xl shadow space-y-2">
+          <div key={iTeor} className="bg-white p-4 rounded-xl shadow-sm space-y-2">
             <div className="flex items-center gap-3">
               <label className="text-sm font-semibold">Teor (%)
                 <input className="border rounded p-2 w-28 ml-2" type="number" step="any" value={t.teor} disabled={!podeEditar}
@@ -418,8 +418,8 @@ export default function ProjetoMarshallPage() {
       {resultado && !resultado.ok && <p className="text-amber-700 bg-amber-50 p-3 rounded">{resultado.problema}</p>}
 
       {resultado?.ok && resultado.pontos.length > 0 && (
-        <section className="bg-white p-4 rounded-xl shadow space-y-4">
-          <h2 className="font-semibold text-lg">Curvas de dosagem</h2>
+        <section className="bg-white p-4 rounded-xl shadow-sm space-y-4">
+          <h2 className="font-semibold text-lg text-grp-700">Curvas de dosagem</h2>
           <table className="w-full text-sm">
             <thead><tr className="text-left border-b">
               <th className="p-2">Teor</th><th>Densidade aparente</th><th>Vazios %</th><th>Estabilidade</th><th>Fluência</th><th>VAM</th><th>RBV</th>
@@ -486,8 +486,8 @@ export default function ProjetoMarshallPage() {
       )}
 
       {resultado?.ok && resultado.detalhes.length > 0 && (
-        <section className="bg-white p-4 rounded-xl shadow space-y-6">
-          <h2 className="font-semibold text-lg">Resultados detalhados por corpo de prova</h2>
+        <section className="bg-white p-4 rounded-xl shadow-sm space-y-6">
+          <h2 className="font-semibold text-lg text-grp-700">Resultados detalhados por corpo de prova</h2>
           {resultado.detalhes.map(d => {
             const temInconsistente = d.cps.some(c => c.inconsistente)
             return (
@@ -615,7 +615,7 @@ export default function ProjetoMarshallPage() {
 
       {podeEditar && (
         <div className="flex items-center gap-3">
-          <button className="bg-blue-700 text-white rounded px-6 py-3 font-semibold disabled:opacity-50" disabled={salvar.isPending}
+          <button className="bg-grp-600 hover:bg-grp-700 text-white rounded px-6 py-3 font-semibold disabled:opacity-50" disabled={salvar.isPending}
             onClick={() => salvar.mutate()}>
             Salvar dosagem Marshall
           </button>

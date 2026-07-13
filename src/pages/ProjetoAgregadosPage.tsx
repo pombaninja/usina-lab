@@ -269,14 +269,14 @@ export default function ProjetoAgregadosPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Granulometria dos agregados — {dosagem?.nome ?? '…'}</h1>
+        <h1 className="text-2xl font-bold text-grp-700">Granulometria dos agregados — {dosagem?.nome ?? '…'}</h1>
         <button className="text-sm text-blue-700 underline" onClick={() => nav('/dosagens')}>Voltar aos projetos</button>
       </div>
       {!podeEditar && <p className="text-sm text-slate-500">Somente avaliador ou administrador edita a granulometria dos agregados. Exibindo em modo leitura.</p>}
       {!peneiras.length && <p className="text-amber-700 bg-amber-50 p-3 rounded">A especificação deste projeto não tem peneiras cadastradas.</p>}
 
       <div className="flex items-center justify-between">
-        <h2 className="font-semibold text-lg">Agregados</h2>
+        <h2 className="font-semibold text-lg text-grp-700">Agregados</h2>
         {podeEditar && <button type="button" className="text-sm border rounded px-3 py-1" onClick={adicionarAgregado}>+ Adicionar agregado</button>}
       </div>
 
@@ -284,7 +284,7 @@ export default function ProjetoAgregadosPage() {
         const res = resultados[iAg]
         const dadosGrafico = res?.ok ? res.linhas.map(l => ({ abertura: l.aberturaMm, pctPassa: Number(l.pctPassa.toFixed(2)) })) : []
         return (
-          <section key={iAg} className="bg-white p-4 rounded-xl shadow space-y-3">
+          <section key={iAg} className="bg-white p-4 rounded-xl shadow-sm space-y-3">
             <div className="flex items-center justify-between">
               <div className="grid grid-cols-3 gap-3 flex-1">
                 <label className="text-sm">Material
@@ -371,8 +371,8 @@ export default function ProjetoAgregadosPage() {
         )
       })}
 
-      <section className="bg-white p-4 rounded-xl shadow space-y-4">
-        <h2 className="font-semibold text-lg">Granulometria combinada</h2>
+      <section className="bg-white p-4 rounded-xl shadow-sm space-y-4">
+        <h2 className="font-semibold text-lg text-grp-700">Granulometria combinada</h2>
 
         {(() => {
           const comResultado = agregados.map((a, i) => ({ a, i })).filter(({ i }) => resultados[i]?.ok)
@@ -437,7 +437,7 @@ export default function ProjetoAgregadosPage() {
 
       {podeEditar && (
         <div className="flex items-center gap-3">
-          <button className="bg-blue-700 text-white rounded px-6 py-3 font-semibold disabled:opacity-50" disabled={salvar.isPending}
+          <button className="bg-grp-600 hover:bg-grp-700 text-white rounded px-6 py-3 font-semibold disabled:opacity-50" disabled={salvar.isPending}
             onClick={() => salvar.mutate()}>
             Salvar granulometria dos agregados
           </button>

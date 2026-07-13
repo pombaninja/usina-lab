@@ -92,7 +92,7 @@ function SecaoInsumos() {
 
   return (
     <section className="space-y-4">
-      <h2 className="text-xl font-bold">Insumos</h2>
+      <h2 className="text-xl font-bold text-grp-700">Insumos</h2>
       <div className="grid grid-cols-4 gap-4">
         {(tanquesAtivos ?? []).map(t => {
           const info = saldoPorTanque.get(t.id)
@@ -150,7 +150,7 @@ export default function DashboardPage() {
   const card = 'bg-white p-6 rounded-xl shadow'
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Painel do mês</h1>
+      <h1 className="text-2xl font-bold text-grp-700">Painel do mês</h1>
       <div className="grid grid-cols-4 gap-4">
         <div className={card}><p className="text-slate-500 text-sm">Ensaios no mês</p><p className="text-3xl font-bold">{data?.total ?? '…'}</p></div>
         <div className={card}><p className="text-slate-500 text-sm">% Conformidade</p>

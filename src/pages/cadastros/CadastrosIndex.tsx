@@ -8,7 +8,7 @@ export default function CadastrosIndex() {
   return (
     <div className="grid grid-cols-3 gap-4">
       {itens.map(([rota, nome]) => (
-        <Link key={rota} to={rota.startsWith('/') ? rota : `/cadastros/${rota}`} className="bg-white p-6 rounded-xl shadow hover:shadow-md font-semibold">{nome}</Link>
+        <Link key={rota} to={rota.startsWith('/') ? rota : `/cadastros/${rota}`} className="bg-white p-6 rounded-xl shadow-sm hover:shadow-md font-semibold">{nome}</Link>
       ))}
     </div>
   )

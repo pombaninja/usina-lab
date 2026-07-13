@@ -56,7 +56,7 @@ function SubTabela({ especId, tabela, titulo, campos, obrigatorios }: {
     onSuccess: () => qc.invalidateQueries({ queryKey: [tabela, especId] }),
   })
   return (
-    <div className="bg-white p-4 rounded-xl shadow">
+    <div className="bg-white p-4 rounded-xl shadow-sm">
       <h3 className="font-semibold mb-2">{titulo}</h3>
       <div className="flex gap-2 mb-3 flex-wrap">
         {campos.map(c => {
@@ -77,7 +77,7 @@ function SubTabela({ especId, tabela, titulo, campos, obrigatorios }: {
                    onChange={e => setForm({ ...form, [c.nome]: c.numero ? sanitizarDecimal(e.target.value) : e.target.value })} />
           )
         })}
-        <button className="bg-blue-700 text-white rounded px-3" onClick={() => inserir.mutate()}>+</button>
+        <button className="bg-grp-600 hover:bg-grp-700 text-white rounded px-3" onClick={() => inserir.mutate()}>+</button>
       </div>
       {erro && <p className="text-red-600 text-sm mb-2">{erro}</p>}
       <table className="w-full text-sm">
@@ -110,7 +110,7 @@ export default function EspecificacoesPage() {
             { valor: 'cauq', rotulo: 'CAUQ' }, { valor: 'bgs', rotulo: 'BGS' },
             { valor: 'solo_brita', rotulo: 'Solo-brita' }, { valor: 'agregado', rotulo: 'Agregado' }] },
         ]} />
-      <div className="bg-white p-4 rounded-xl shadow">
+      <div className="bg-white p-4 rounded-xl shadow-sm">
         <label className="text-sm text-slate-600">Editar faixas da especificação:</label>
         <select className="border rounded p-2 ml-2" value={selecionada} onChange={e => setSelecionada(e.target.value)}>
           <option value="">Selecione…</option>

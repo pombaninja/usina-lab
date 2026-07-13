@@ -48,8 +48,8 @@ export default function LaudosListaPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">Laudos</h1>
-      <table className="w-full bg-white rounded-xl shadow text-sm">
+      <h1 className="text-2xl font-bold text-grp-700">Laudos</h1>
+      <table className="w-full bg-white rounded-xl shadow-sm text-sm">
         <thead><tr className="text-left border-b"><th className="p-3">Número</th><th>Empresa</th><th>Rev.</th><th>Status</th><th>Emitido em</th><th /></tr></thead>
         <tbody>{(laudos ?? []).map((l: LaudoLinha) => (
           <tr key={l.id} className="border-b hover:bg-slate-50">

@@ -67,9 +67,9 @@ export default function Crud({ tabela, titulo, colunas, campos, ordem = 'criado_
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">{titulo}</h1>
+      <h1 className="text-2xl font-bold text-grp-700">{titulo}</h1>
       <form onSubmit={e => { e.preventDefault(); salvar.mutate() }}
-            className="bg-white p-4 rounded-xl shadow grid grid-cols-3 gap-3 items-end">
+            className="bg-white p-4 rounded-xl shadow-sm grid grid-cols-3 gap-3 items-end">
         {campos.map(c => (
           <label key={c.nome} className="text-sm">
             <span className="block text-slate-600 mb-1">{c.rotulo}{c.obrigatorio && ' *'}</span>
@@ -92,12 +92,12 @@ export default function Crud({ tabela, titulo, colunas, campos, ordem = 'criado_
           </label>
         ))}
         <div className="flex gap-2">
-          <button className="bg-blue-700 text-white rounded px-4 py-2 disabled:opacity-50" disabled={salvar.isPending}>{editando ? 'Atualizar' : 'Adicionar'}</button>
+          <button className="bg-grp-600 hover:bg-grp-700 text-white rounded px-4 py-2 disabled:opacity-50" disabled={salvar.isPending}>{editando ? 'Atualizar' : 'Adicionar'}</button>
           {editando && <button type="button" className="border rounded px-3" onClick={() => { setEditando(null); setForm({}) }}>Cancelar</button>}
         </div>
         {erro && <p className="text-red-600 text-sm col-span-3">{erro}</p>}
       </form>
-      <table className="w-full bg-white rounded-xl shadow text-sm">
+      <table className="w-full bg-white rounded-xl shadow-sm text-sm">
         <thead><tr className="text-left border-b">
           {colunas.map(c => <th key={c.nome} className="p-3">{c.rotulo}</th>)}<th />
         </tr></thead>

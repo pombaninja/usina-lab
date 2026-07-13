@@ -1,9 +1,26 @@
 @import "tailwindcss";
 
+/* Identidade visual GRP (Grupo Ribeiro Porto) — cores extraídas do logotipo oficial */
+@theme {
+  --color-grp-50: #f3f7fc;   /* fundo levíssimo */
+  --color-grp-100: #e8f0fa;  /* tinta clara (cabeçalhos de tabela, item ativo do menu) */
+  --color-grp-200: #c9dbf1;
+  --color-grp-500: #4c80c4;
+  --color-grp-600: #3b6fb5;  /* azul GRP — ações primárias */
+  --color-grp-700: #2f5a94;  /* hover / títulos */
+  --color-grp-800: #264a7a;
+  --color-grp-ink: #575052;  /* cinza-marrom GRP — textos secundários */
+}
+
 @media print {
   @page { size: A4; margin: 12mm; }
   nav, button { display: none !important; }
   body { background: white; }
+  /* Garante que fundos e bordas da identidade GRP saiam na impressão/PDF */
+  html {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
 }
 
 /* Quebras de página para documentos impressos (Documento do Projeto, laudos) */

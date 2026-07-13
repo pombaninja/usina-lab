@@ -156,13 +156,13 @@ export default function ProjetoViscosidadePage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Viscosidade do CAP — {dosagem?.nome ?? '…'}</h1>
+        <h1 className="text-2xl font-bold text-grp-700">Viscosidade do CAP — {dosagem?.nome ?? '…'}</h1>
         <button className="text-sm text-blue-700 underline" onClick={() => nav('/dosagens')}>Voltar aos projetos</button>
       </div>
       {!podeEditar && <p className="text-sm text-slate-500">Somente avaliador ou administrador edita a viscosidade do CAP. Exibindo em modo leitura.</p>}
 
-      <section className="bg-white p-4 rounded-xl shadow space-y-4">
-        <h2 className="font-semibold text-lg">Ensaios de caracterização do ligante</h2>
+      <section className="bg-white p-4 rounded-xl shadow-sm space-y-4">
+        <h2 className="font-semibold text-lg text-grp-700">Ensaios de caracterização do ligante</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <label className="text-sm">Material / amostra
             <input className={inp} value={material} disabled={!podeEditar}
@@ -179,8 +179,8 @@ export default function ProjetoViscosidadePage() {
         </div>
       </section>
 
-      <section className="bg-white p-4 rounded-xl shadow space-y-4">
-        <h2 className="font-semibold text-lg">Viscosidade Saybolt-Furol × temperatura</h2>
+      <section className="bg-white p-4 rounded-xl shadow-sm space-y-4">
+        <h2 className="font-semibold text-lg text-grp-700">Viscosidade Saybolt-Furol × temperatura</h2>
         <p className="text-sm text-slate-500">
           Para cada temperatura (°C), informe o tempo de escoamento (segundos SSF). A curva é ajustada por
           regressão de mínimos quadrados de ln(viscosidade) em função da temperatura — equivalente ao LOGEST
@@ -264,7 +264,7 @@ export default function ProjetoViscosidadePage() {
 
       {podeEditar && (
         <div className="flex items-center gap-3">
-          <button className="bg-blue-700 text-white rounded px-6 py-3 font-semibold disabled:opacity-50" disabled={salvar.isPending}
+          <button className="bg-grp-600 hover:bg-grp-700 text-white rounded px-6 py-3 font-semibold disabled:opacity-50" disabled={salvar.isPending}
             onClick={() => salvar.mutate()}>
             Salvar viscosidade do CAP
           </button>

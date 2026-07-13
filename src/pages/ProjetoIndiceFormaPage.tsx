@@ -170,13 +170,13 @@ export default function ProjetoIndiceFormaPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Índice de forma / Lamelaridade — {dosagem?.nome ?? '…'}</h1>
+        <h1 className="text-2xl font-bold text-grp-700">Índice de forma / Lamelaridade — {dosagem?.nome ?? '…'}</h1>
         <button className="text-sm text-blue-700 underline" onClick={() => nav('/dosagens')}>Voltar aos projetos</button>
       </div>
       {!podeEditar && <p className="text-sm text-slate-500">Somente avaliador ou administrador edita o índice de forma. Exibindo em modo leitura.</p>}
 
-      <section className="bg-white p-4 rounded-xl shadow space-y-4">
-        <h2 className="font-semibold text-lg">Ensaio de lamelaridade — NBR 7809 / DNIT 425/2020</h2>
+      <section className="bg-white p-4 rounded-xl shadow-sm space-y-4">
+        <h2 className="font-semibold text-lg text-grp-700">Ensaio de lamelaridade — NBR 7809 / DNIT 425/2020</h2>
         <p className="text-sm text-slate-500">
           Para cada grão medem-se espessura (E) e comprimento (C), em mm. IL = C/E. Um grão é lamelar quando IL ≥ 3.
           O resultado do ensaio é a média dos IL de todos os grãos e o percentual de grãos lamelares.
@@ -252,7 +252,7 @@ export default function ProjetoIndiceFormaPage() {
 
       {podeEditar && (
         <div className="flex items-center gap-3">
-          <button className="bg-blue-700 text-white rounded px-6 py-3 font-semibold disabled:opacity-50" disabled={salvar.isPending}
+          <button className="bg-grp-600 hover:bg-grp-700 text-white rounded px-6 py-3 font-semibold disabled:opacity-50" disabled={salvar.isPending}
             onClick={() => salvar.mutate()}>
             Salvar índice de forma
           </button>

@@ -91,17 +91,17 @@ export default function InsumosHistoricoPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-2xl font-bold">Histórico mensal de insumos</h1>
+        <h1 className="text-2xl font-bold text-grp-700">Histórico mensal de insumos</h1>
         <div className="flex items-center gap-3">
           <label className="text-sm">Mês
             <input type="month" className="border rounded p-2 ml-2" value={mes} onChange={e => setMes(e.target.value)} /></label>
-          <button className="bg-blue-700 text-white rounded px-4 py-2 font-semibold" onClick={exportarCsv}>
+          <button className="bg-grp-600 hover:bg-grp-700 text-white rounded px-4 py-2 font-semibold" onClick={exportarCsv}>
             Exportar CSV
           </button>
         </div>
       </div>
 
-      <section className="bg-white p-4 rounded-xl shadow overflow-x-auto">
+      <section className="bg-white p-4 rounded-xl shadow-sm overflow-x-auto">
         <table className="w-full text-sm">
           <thead><tr className="text-left border-b">
             <th className="p-2">Data</th><th>Produção (t)</th><th>CAP deslocado (t)</th><th>Óleo (L)</th><th>CAP/ton</th><th>Óleo L/ton</th>
@@ -149,7 +149,7 @@ export default function InsumosHistoricoPage() {
         </table>
       </section>
 
-      <section className="bg-white p-4 rounded-xl shadow">
+      <section className="bg-white p-4 rounded-xl shadow-sm">
         <h2 className="font-semibold mb-2">Entradas do mês</h2>
         {entradasPorTanque.length === 0
           ? <p className="text-slate-500 text-sm">Nenhuma entrada no mês</p>

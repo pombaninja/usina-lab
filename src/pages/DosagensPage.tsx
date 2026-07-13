@@ -644,11 +644,11 @@ export default function DosagensPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Projetos de Materiais</h1>
+      <h1 className="text-2xl font-bold text-grp-700">Projetos de Materiais</h1>
       {!podeEditar && <p className="text-sm text-slate-500">Somente avaliador ou administrador edita projetos de materiais.</p>}
 
       {podeEditar && (
-        <form onSubmit={e => { e.preventDefault(); salvar.mutate() }} className="bg-white p-4 rounded-xl shadow space-y-4">
+        <form onSubmit={e => { e.preventDefault(); salvar.mutate() }} className="bg-white p-4 rounded-xl shadow-sm space-y-4">
           <div className="grid grid-cols-3 gap-3">
             <label className="text-sm">Nome *<input className="w-full border rounded p-2" value={String(form.nome ?? '')}
               onChange={e => setForm({ ...form, nome: e.target.value })} required /></label>
@@ -780,7 +780,7 @@ export default function DosagensPage() {
           )}
 
           <div className="flex gap-2 items-center">
-            <button className="bg-blue-700 text-white rounded px-4 py-2 disabled:opacity-50" disabled={salvar.isPending}>
+            <button className="bg-grp-600 hover:bg-grp-700 text-white rounded px-4 py-2 disabled:opacity-50" disabled={salvar.isPending}>
               {editando ? 'Atualizar' : 'Adicionar'}
             </button>
             {editando && <button type="button" className="border rounded px-3 py-2 disabled:opacity-50" disabled={salvar.isPending} onClick={limparForm}>Cancelar</button>}
@@ -789,7 +789,7 @@ export default function DosagensPage() {
         </form>
       )}
 
-      <table className="w-full bg-white rounded-xl shadow text-sm">
+      <table className="w-full bg-white rounded-xl shadow-sm text-sm">
         <thead><tr className="text-left border-b"><th className="p-3">Nome</th><th>Rev.</th><th>Empresa</th><th>Especificação</th><th>Contexto/Tipo</th><th>Teor ótimo</th><th>Gmm</th><th /></tr></thead>
         <tbody>{atuais.map(d => {
           const familia = String(d.projeto_pai_id ?? d.id)

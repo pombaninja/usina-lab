@@ -136,7 +136,7 @@ export default function ProjetoRtdPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Ruptura Diametral (RTD) — {dosagem?.nome ?? '…'}</h1>
+        <h1 className="text-2xl font-bold text-grp-700">Ruptura Diametral (RTD) — {dosagem?.nome ?? '…'}</h1>
         <button className="text-sm text-blue-700 underline" onClick={() => nav('/dosagens')}>Voltar aos projetos</button>
       </div>
       {!podeEditar && <p className="text-sm text-slate-500">Somente avaliador ou administrador edita o ensaio de Ruptura Diametral. Exibindo em modo leitura.</p>}
@@ -146,7 +146,7 @@ export default function ProjetoRtdPage() {
         A média é puxada automaticamente para a característica "Resistência à tração diametral" do projeto.
       </p>
 
-      <section className="bg-white p-4 rounded-xl shadow">
+      <section className="bg-white p-4 rounded-xl shadow-sm">
         {marshall?.constante_prensa != null ? (
           <p className="text-sm">Constante da prensa (da Dosagem Marshall): <b>{fmt(marshall.constante_prensa, 4)}</b></p>
         ) : (
@@ -157,11 +157,11 @@ export default function ProjetoRtdPage() {
       </section>
 
       <div className="flex items-center justify-between">
-        <h2 className="font-semibold text-lg">Corpos de prova</h2>
+        <h2 className="font-semibold text-lg text-grp-700">Corpos de prova</h2>
         {podeEditar && <button type="button" className="text-sm border rounded px-3 py-1" onClick={adicionar}>+ Adicionar CP</button>}
       </div>
 
-      <div className="overflow-x-auto bg-white p-4 rounded-xl shadow">
+      <div className="overflow-x-auto bg-white p-4 rounded-xl shadow-sm">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left border-b">
@@ -202,7 +202,7 @@ export default function ProjetoRtdPage() {
 
       {podeEditar && (
         <div className="flex items-center gap-3">
-          <button className="bg-blue-700 text-white rounded px-6 py-3 font-semibold disabled:opacity-50" disabled={salvar.isPending}
+          <button className="bg-grp-600 hover:bg-grp-700 text-white rounded px-6 py-3 font-semibold disabled:opacity-50" disabled={salvar.isPending}
             onClick={() => salvar.mutate()}>
             Salvar Ruptura Diametral
           </button>

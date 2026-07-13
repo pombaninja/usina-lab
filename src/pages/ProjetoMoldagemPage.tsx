@@ -178,14 +178,14 @@ export default function ProjetoMoldagemPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Composição e pesos de moldagem — {dosagem?.nome ?? '…'}</h1>
+        <h1 className="text-2xl font-bold text-grp-700">Composição e pesos de moldagem — {dosagem?.nome ?? '…'}</h1>
         <button className="text-sm text-blue-700 underline" onClick={() => nav('/dosagens')}>Voltar aos projetos</button>
       </div>
       {!podeEditar && <p className="text-sm text-slate-500">Somente avaliador ou administrador edita os campos abaixo. Exibindo em modo leitura.</p>}
       {!peneiras.length && <p className="text-amber-700 bg-amber-50 p-3 rounded">A especificação deste projeto não tem peneiras cadastradas.</p>}
 
-      <section className="bg-white p-4 rounded-xl shadow space-y-3">
-        <h2 className="font-semibold text-lg">Composição consolidada</h2>
+      <section className="bg-white p-4 rounded-xl shadow-sm space-y-3">
+        <h2 className="font-semibold text-lg text-grp-700">Composição consolidada</h2>
         <p className="text-sm text-slate-500">
           % passa combinada calculada automaticamente a partir das granulometrias dos agregados (aba "Agregados") ponderadas
           pela composição da mistura. Ajuste manualmente qualquer peneira caso os agregados ainda não tenham sido preenchidos.
@@ -226,8 +226,8 @@ export default function ProjetoMoldagemPage() {
         )}
       </section>
 
-      <section className="bg-white p-4 rounded-xl shadow space-y-4">
-        <h2 className="font-semibold text-lg">Pesos de moldagem</h2>
+      <section className="bg-white p-4 rounded-xl shadow-sm space-y-4">
+        <h2 className="font-semibold text-lg text-grp-700">Pesos de moldagem</h2>
         <p className="text-sm text-slate-500">
           Peso total do CP e teores não são salvos no banco — servem apenas para o cálculo/impressão desta tela.
         </p>

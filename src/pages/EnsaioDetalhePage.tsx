@@ -134,7 +134,7 @@ export default function EnsaioDetalhePage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Ensaio de {new Date(ensaio.data + 'T12:00').toLocaleDateString('pt-BR')} — {ensaio.dosagens?.nome}</h1>
+        <h1 className="text-2xl font-bold text-grp-700">Ensaio de {new Date(ensaio.data + 'T12:00').toLocaleDateString('pt-BR')} — {ensaio.dosagens?.nome}</h1>
         {podeEditarValores && <Link to={`/ensaios/${id}/editar`} className="bg-slate-800 text-white rounded px-4 py-2">Editar valores</Link>}
       </div>
       {r && (
@@ -143,16 +143,16 @@ export default function EnsaioDetalhePage() {
         </div>
       )}
       {r?.marshall && (
-        <section className="bg-white p-4 rounded-xl shadow text-sm">
+        <section className="bg-white p-4 rounded-xl shadow-sm text-sm">
           <h2 className="font-semibold mb-2">Resultados Marshall (médias)</h2>
           <p>Vazios: <b>{fmt(r.marshall.medias.vazios, 2)}%</b> · VAM: <b>{fmt(r.marshall.medias.vam, 1)}</b> ·
              RBV: <b>{fmt(r.marshall.medias.rbv, 1)}%</b> · Estabilidade: <b>{fmt(r.marshall.medias.estabilidadeCorrigida, 0)} kgf</b> ·
              Teor: <b>{fmt(r.teor, 2)}%</b> · Gmm: <b>{fmt(r.gmm, 4)}</b></p>
         </section>
       )}
-      <section className="bg-white p-4 rounded-xl shadow">
+      <section className="bg-white p-4 rounded-xl shadow-sm">
         <h2 className="font-semibold mb-3">Laudo</h2>
-        {!laudo && <button className="bg-blue-700 text-white rounded px-4 py-2 disabled:opacity-50" disabled={criarLaudo.isPending} onClick={() => criarLaudo.mutate()}>Criar laudo (rascunho)</button>}
+        {!laudo && <button className="bg-grp-600 hover:bg-grp-700 text-white rounded px-4 py-2 disabled:opacity-50" disabled={criarLaudo.isPending} onClick={() => criarLaudo.mutate()}>Criar laudo (rascunho)</button>}
         {laudo && (
           <div className="space-y-3 text-sm">
             <p>Número: <b>{laudo.numero}{laudo.revisao > 0 ? ` — Rev. ${laudo.revisao}` : ''}</b> · Revisão: <b>{laudo.revisao}</b> · Status: <b className="uppercase">{laudo.status}</b></p>
