@@ -15,6 +15,10 @@ import { gmmRice } from '../lib/calculos/teorBetume'
 import { calcularRtd } from '../lib/calculos/rtd'
 import { densidadeAgregadoGraudo, densidadeAgregadoMiudo, massaEspecificaRealMedia, type DensidadeGraudo } from '../lib/calculos/densidades'
 import { indiceLamelaridade } from '../lib/calculos/indiceForma'
+import {
+  calcularLamelaridade, PENEIRAS_LAMELARIDADE, FRACOES_LAMELARIDADE,
+  type ResultadoLamelaridadeFracoes,
+} from '../lib/calculos/lamelaridade'
 import { equivalenteAreia, type DeterminacaoEA } from '../lib/calculos/equivalenteAreia'
 import { curvaViscosidade, type PontoVisc } from '../lib/calculos/viscosidadeCap'
 import { avaliarParametros, type ParametroEspec } from '../lib/calculos/avaliacao'
@@ -44,6 +48,11 @@ interface ComplementaresRow {
   adesividade: string | null; adesividade_obs: string | null; durabilidade_sulfato: number | null
 }
 interface IndiceFormaRow { material_nome: string | null; media_il: number | null; pct_lamelar: number | null; graos: { espessura: number; comprimento: number }[] | null }
+interface LamelaridadeRow {
+  material_nome: string; origem: string | null; data: string | null; peso_total: number | null
+  granulometria: Record<string, number> | null
+  fracoes: { passando: string; retido: string; pesoFracao: number | null; pesoLamelar: number | null }[] | null
+}
 interface ViscosidadeRow {
   material: string | null; pontos: { temperatura: number; viscosidade: number }[] | null
   faixas: { usinagemMin: number; usinagemMax: number; compactacaoMin: number; compactacaoMax: number } | null
@@ -106,7 +115,7 @@ export default function ProjetoDocumentoPage() {
       if (errDos) throw errDos
       const d = dosagem as unknown as DosagemRow
 
-      const [peneirasR, parametrosR, composicaoR, agregadosR, marshallR, marshallCpR, riceTeorR, rtdR, densidadesR, complementaresR, indiceFormaR, viscosidadeR] = await Promise.all([
+      const [peneirasR, parametrosR, composicaoR, agregadosR, marshallR, marshallCpR, riceTeorR, rtdR, densidadesR, complementaresR, indiceFormaR, lamelaridadeR, viscosidadeR] = await Promise.all([
         supabase.from('especificacao_peneiras').select('peneira, abertura_mm, passante_min, passante_max, tolerancia_trabalho')
           .eq('especificacao_id', d.especificacao_id).order('abertura_mm', { ascending: false }),
         supabase.from('especificacao_parametros').select('parametro, valor_min, valor_max, unidade').eq('especificacao_id', d.especificacao_id),
@@ -120,10 +129,11 @@ export default function ProjetoDocumentoPage() {
         supabase.from('projeto_densidades').select('tipo, material_nome, entradas').eq('dosagem_id', dosagemId).order('ordem'),
         supabase.from('projeto_complementares').select('ea_determinacoes, ea_resultado, adesividade, adesividade_obs, durabilidade_sulfato').eq('dosagem_id', dosagemId).maybeSingle(),
         supabase.from('projeto_indice_forma').select('material_nome, media_il, pct_lamelar, graos').eq('dosagem_id', dosagemId).maybeSingle(),
+        supabase.from('projeto_lamelaridade').select('material_nome, origem, data, peso_total, granulometria, fracoes').eq('dosagem_id', dosagemId).order('ordem'),
         supabase.from('projeto_viscosidade').select('material, pontos, faixas, ponto_fulgor, ponto_amolecimento, penetracao, temp_usinagem_min, temp_usinagem_max, temp_compactacao_min, temp_compactacao_max')
           .eq('dosagem_id', dosagemId).maybeSingle(),
       ])
-      for (const r of [peneirasR, parametrosR, composicaoR, agregadosR, marshallR, marshallCpR, riceTeorR, rtdR, densidadesR, complementaresR, indiceFormaR, viscosidadeR]) {
+      for (const r of [peneirasR, parametrosR, composicaoR, agregadosR, marshallR, marshallCpR, riceTeorR, rtdR, densidadesR, complementaresR, indiceFormaR, lamelaridadeR, viscosidadeR]) {
         if (r.error) throw r.error
       }
 
@@ -140,6 +150,7 @@ export default function ProjetoDocumentoPage() {
         densidades: (densidadesR.data ?? []) as DensidadeRow[],
         complementares: complementaresR.data as ComplementaresRow | null,
         indiceForma: indiceFormaR.data as IndiceFormaRow | null,
+        lamelaridade: (lamelaridadeR.data ?? []) as LamelaridadeRow[],
         viscosidade: viscosidadeR.data as ViscosidadeRow | null,
       }
     },
@@ -334,6 +345,27 @@ export default function ProjetoDocumentoPage() {
     let resumo: ReturnType<typeof indiceLamelaridade> | null = null
     try { resumo = indiceLamelaridade(graos) } catch { resumo = null }
     return { linhas, resumo }
+  }, [data])
+
+  // ===== Índice de Lamelaridade por fração (reaproveita calcularLamelaridade) =====
+  const lamelaridadeCalc = useMemo(() => {
+    if (!data?.lamelaridade.length) return null
+    return data.lamelaridade.map(m => {
+      const acum = PENEIRAS_LAMELARIDADE.map(p => {
+        const v = m.granulometria?.[p]
+        return typeof v === 'number' && Number.isFinite(v) ? v : null
+      })
+      const porFaixa = new Map((m.fracoes ?? []).map(f => [`${f.passando}|${f.retido}`, f]))
+      const fracoes = FRACOES_LAMELARIDADE.map(f => {
+        const salvo = porFaixa.get(`${f.passando}|${f.retido}`)
+        return { pesoFracao: salvo?.pesoFracao ?? null, pesoLamelar: salvo?.pesoLamelar ?? null }
+      })
+      let res: ResultadoLamelaridadeFracoes | null = null
+      if (m.peso_total != null) {
+        try { res = calcularLamelaridade(m.peso_total, acum, fracoes) } catch { res = null }
+      }
+      return { row: m, res }
+    })
   }, [data])
 
   // ===== Viscosidade do CAP (reaproveita viscosidadeCap.ts para o gráfico) =====
@@ -1118,6 +1150,80 @@ export default function ProjetoDocumentoPage() {
               </div>
             </div>
           )}
+        </section>
+      )}
+
+      {/* ===== 5b. Índice de Lamelaridade por fração (DAER/RS-EL 108/01) ===== */}
+      {!!lamelaridadeCalc?.length && (
+        <section className="mb-6">
+          <h2 className="text-lg font-bold border-b-2 border-slate-800 mb-3">Índice de Lamelaridade</h2>
+          <p className="mb-2 text-xs text-slate-600">
+            Método por fração (DAER/RS-EL 108/01): IL da fração = peso lamelar / peso da fração × 100;
+            IL final = Σ(% da fração × IL) / Σ(% das frações ensaiadas). Ensaio distinto do índice de forma grão a grão.
+          </p>
+          {lamelaridadeCalc.map((mLam, iLam) => (
+            <div key={iLam} className="mb-4 doc-evitar-quebra">
+              <h3 className="font-semibold text-xs mb-1">
+                {mLam.row.material_nome}
+                {mLam.row.origem && ` · ${mLam.row.origem}`}
+                {mLam.row.data && ` · ${new Date(mLam.row.data + 'T00:00:00').toLocaleDateString('pt-BR')}`}
+                {mLam.row.peso_total != null && ` · amostra total ${fmt(mLam.row.peso_total, 1)} g`}
+              </h3>
+              <div className="grid grid-cols-2 gap-2">
+                <table className="w-full border-collapse text-[9px] leading-tight self-start">
+                  <thead><tr className="bg-slate-100 text-center">
+                    <th className="border p-0.5">Peneira</th><th className="border p-0.5">Acum. retido (g)</th>
+                    <th className="border p-0.5">Passante (g)</th><th className="border p-0.5">% passa</th>
+                  </tr></thead>
+                  <tbody>
+                    {PENEIRAS_LAMELARIDADE.map((p, iP) => {
+                      const g = mLam.res?.granulometria[iP]
+                      return (
+                        <tr key={p} className="text-center">
+                          <td className="border p-0.5 font-semibold">{p}</td>
+                          <td className="border p-0.5">{g?.pesoAcumRetido != null ? fmt(g.pesoAcumRetido, 1) : '—'}</td>
+                          <td className="border p-0.5">{g?.pesoPassanteRetido != null ? fmt(g.pesoPassanteRetido, 1) : '—'}</td>
+                          <td className="border p-0.5">{g?.pctPassa != null ? fmt(g.pctPassa, 2) : '—'}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+                <table className="w-full border-collapse text-[9px] leading-tight self-start">
+                  <thead><tr className="bg-slate-100 text-center">
+                    <th className="border p-0.5">Fração (mm)</th><th className="border p-0.5">% fração</th>
+                    <th className="border p-0.5">Peso fração (g)</th><th className="border p-0.5">Peso lamelar (g)</th>
+                    <th className="border p-0.5">IL</th><th className="border p-0.5">Ponderado</th>
+                  </tr></thead>
+                  <tbody>
+                    {FRACOES_LAMELARIDADE.map((f, iF) => {
+                      const fr = mLam.res?.fracoes[iF]
+                      return (
+                        <tr key={f.faixaMm} className="text-center">
+                          <td className="border p-0.5 font-semibold whitespace-nowrap">{f.faixaMm}</td>
+                          <td className="border p-0.5">{fr?.pctFracao != null ? fmt(fr.pctFracao, 2) : '—'}</td>
+                          <td className="border p-0.5">{fr?.pesoFracao != null ? fmt(fr.pesoFracao, 1) : '—'}</td>
+                          <td className="border p-0.5">{fr?.pesoLamelar != null ? fmt(fr.pesoLamelar, 1) : '—'}</td>
+                          <td className="border p-0.5">{fr?.ilFracao != null ? fmt(fr.ilFracao, 2) : '—'}</td>
+                          <td className="border p-0.5">{fr?.ponderado != null ? fmt(fr.ponderado, 2) : '—'}</td>
+                        </tr>
+                      )
+                    })}
+                    <tr className="text-center bg-slate-50 font-semibold">
+                      <td className="border p-0.5">Σ (ensaiadas)</td>
+                      <td className="border p-0.5">{mLam.res?.somaPctFracao != null ? fmt(mLam.res.somaPctFracao, 2) : '—'}</td>
+                      <td className="border p-0.5">—</td><td className="border p-0.5">—</td><td className="border p-0.5">—</td>
+                      <td className="border p-0.5">{mLam.res?.somaPonderado != null ? fmt(mLam.res.somaPonderado, 2) : '—'}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-1 text-xs">
+                <b>IL FINAL — {mLam.row.material_nome} (Σ2/Σ1):</b>{' '}
+                <span className="font-bold">{mLam.res?.ilFinal != null ? fmt(mLam.res.ilFinal, 2) : '—'}</span>
+              </p>
+            </div>
+          ))}
         </section>
       )}
 

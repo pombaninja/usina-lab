@@ -23,6 +23,7 @@ import ProjetoMoldagemPage from './pages/ProjetoMoldagemPage'
 import ProjetoDensidadesPage from './pages/ProjetoDensidadesPage'
 import ProjetoComplementaresPage from './pages/ProjetoComplementaresPage'
 import ProjetoIndiceFormaPage from './pages/ProjetoIndiceFormaPage'
+import ProjetoLamelaridadePage from './pages/ProjetoLamelaridadePage'
 import ProjetoViscosidadePage from './pages/ProjetoViscosidadePage'
 import ProjetoDocumentoPage from './pages/ProjetoDocumentoPage'
 import EnsaiosListaPage from './pages/EnsaiosListaPage'
@@ -61,6 +62,7 @@ export default function App() {
               <Route path="/projetos/:id/densidades" element={<ProjetoDensidadesPage />} />
               <Route path="/projetos/:id/complementares" element={<ProjetoComplementaresPage />} />
               <Route path="/projetos/:id/indice-forma" element={<ProjetoIndiceFormaPage />} />
+              <Route path="/projetos/:id/lamelaridade" element={<ProjetoLamelaridadePage />} />
               <Route path="/projetos/:id/viscosidade" element={<ProjetoViscosidadePage />} />
               <Route path="/projetos/:id/documento" element={<ProjetoDocumentoPage />} />
               <Route path="/ensaios" element={<EnsaiosListaPage />} />

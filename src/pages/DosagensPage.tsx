@@ -823,6 +823,7 @@ export default function DosagensPage() {
                       <Link className="text-fuchsia-700" to={`/projetos/${d.id}/densidades`}>Densidades</Link>
                       <Link className="text-orange-700" to={`/projetos/${d.id}/complementares`}>Complementares</Link>
                       <Link className="text-rose-700" to={`/projetos/${d.id}/indice-forma`}>Índice de forma</Link>
+                      <Link className="text-sky-700" to={`/projetos/${d.id}/lamelaridade`}>Lamelaridade</Link>
                       <Link className="text-cyan-700" to={`/projetos/${d.id}/viscosidade`}>Viscosidade do CAP</Link>
                       <Link className="text-slate-700" to={`/projetos/${d.id}/documento`}>Documento / PDF</Link>
                     </>
