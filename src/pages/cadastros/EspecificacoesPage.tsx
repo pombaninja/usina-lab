@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import Crud from '../../components/Crud'
+import { sanitizarDecimal, parseDecimal, decimalParaTexto } from '../../lib/formato'
 
 function SubTabela({ especId, tabela, titulo, campos, obrigatorios }: {
   especId: string; tabela: 'especificacao_peneiras' | 'especificacao_parametros'
@@ -32,7 +33,19 @@ function SubTabela({ especId, tabela, titulo, campos, obrigatorios }: {
           }
         }
       }
-      const { error } = await supabase.from(tabela).insert({ ...form, especificacao_id: especId })
+      // Campos numéricos ficam como texto com vírgula no estado; converte para Number só aqui.
+      const registro: Record<string, unknown> = { ...form }
+      for (const c of campos) {
+        if (!c.numero) continue
+        const bruto = registro[c.nome]
+        if (bruto === null || bruto === undefined || bruto === '') { registro[c.nome] = null; continue }
+        const num = parseDecimal(String(bruto))
+        if (num === null || !Number.isFinite(num)) {
+          throw new Error(`Valor inválido em "${c.rotulo}" — use números com vírgula (ex.: 0,075)`)
+        }
+        registro[c.nome] = num
+      }
+      const { error } = await supabase.from(tabela).insert({ ...registro, especificacao_id: especId })
       if (error) throw error
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: [tabela, especId] }); setForm({}); setErro('') },
@@ -56,10 +69,12 @@ function SubTabela({ especId, tabela, titulo, campos, obrigatorios }: {
               </select>
             )
           }
+          // Numérico: texto com teclado decimal — aceita ',' e '.', padroniza em ','
+          // e só converte para Number ao salvar (permite digitar "0,075").
           return (
             <input key={c.nome} className="border rounded p-2 w-36" placeholder={c.rotulo}
-                   type={c.numero ? 'number' : 'text'} step="any" value={String(form[c.nome] ?? '')}
-                   onChange={e => setForm({ ...form, [c.nome]: c.numero ? (e.target.value === '' ? null : Number(e.target.value)) : e.target.value })} />
+                   type="text" inputMode={c.numero ? 'decimal' : undefined} value={String(form[c.nome] ?? '')}
+                   onChange={e => setForm({ ...form, [c.nome]: c.numero ? sanitizarDecimal(e.target.value) : e.target.value })} />
           )
         })}
         <button className="bg-blue-700 text-white rounded px-3" onClick={() => inserir.mutate()}>+</button>
@@ -69,7 +84,7 @@ function SubTabela({ especId, tabela, titulo, campos, obrigatorios }: {
         <thead><tr className="text-left border-b">{campos.map(c => <th key={c.nome} className="p-2">{c.rotulo}</th>)}<th /></tr></thead>
         <tbody>{(linhas ?? []).map((l: Record<string, unknown> & { id: string }) => (
           <tr key={l.id} className="border-b">
-            {campos.map(c => <td key={c.nome} className="p-2">{String(l[c.nome] ?? '')}</td>)}
+            {campos.map(c => <td key={c.nome} className="p-2">{c.numero ? decimalParaTexto(l[c.nome]) : String(l[c.nome] ?? '')}</td>)}
             <td><button className="text-red-600" onClick={() => excluir.mutate(l.id)}>×</button></td>
           </tr>
         ))}</tbody>

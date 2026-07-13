@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { sanitizarDecimal, parseDecimal, decimalParaTexto } from '../lib/formato'
 
 export interface Campo {
   nome: string; rotulo: string
@@ -37,9 +38,21 @@ export default function Crud({ tabela, titulo, colunas, campos, ordem = 'criado_
         if (c.obrigatorio && !form[c.nome] && form[c.nome] !== false)
           throw new Error(`Preencha o campo "${c.rotulo}"`)
       }
+      // Campos numéricos ficam como texto com vírgula no estado; converte para Number só aqui.
+      const registro: Record<string, unknown> = { ...form }
+      for (const c of campos) {
+        if (c.tipo !== 'numero') continue
+        const bruto = registro[c.nome]
+        if (bruto === null || bruto === undefined || bruto === '') { registro[c.nome] = null; continue }
+        const num = typeof bruto === 'number' ? bruto : parseDecimal(String(bruto))
+        if (num === null || !Number.isFinite(num)) {
+          throw new Error(`Valor inválido em "${c.rotulo}" — use números com vírgula (ex.: 0,075)`)
+        }
+        registro[c.nome] = num
+      }
       const { error } = editando
-        ? await supabase.from(tabela).update(form).eq('id', editando.id)
-        : await supabase.from(tabela).insert(form)
+        ? await supabase.from(tabela).update(registro).eq('id', editando.id)
+        : await supabase.from(tabela).insert(registro)
       if (error) throw error
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: [tabela] }); setForm({}); setEditando(null); setErro('') },
@@ -48,7 +61,8 @@ export default function Crud({ tabela, titulo, colunas, campos, ordem = 'criado_
 
   function abrirEdicao(l: Registro) {
     setEditando(l)
-    setForm(Object.fromEntries(campos.map(c => [c.nome, l[c.nome] ?? ''])))
+    // Numéricos voltam para o formulário como texto com vírgula (padrão de exibição).
+    setForm(Object.fromEntries(campos.map(c => [c.nome, c.tipo === 'numero' ? decimalParaTexto(l[c.nome]) : (l[c.nome] ?? '')])))
   }
 
   return (
@@ -69,9 +83,11 @@ export default function Crud({ tabela, titulo, colunas, campos, ordem = 'criado_
               <input type="checkbox" checked={!!form[c.nome]}
                      onChange={e => setForm({ ...form, [c.nome]: e.target.checked })} />
             ) : (
-              <input className="w-full border rounded p-2" type={c.tipo === 'numero' ? 'number' : 'text'}
-                     step="any" value={String(form[c.nome] ?? '')}
-                     onChange={e => setForm({ ...form, [c.nome]: c.tipo === 'numero' ? (e.target.value === '' ? null : Number(e.target.value)) : e.target.value })} />
+              // Numérico: texto com teclado decimal — aceita ',' e '.', padroniza em ','
+              // e só converte para Number ao salvar (permite digitar "0,075").
+              <input className="w-full border rounded p-2" type="text"
+                     inputMode={c.tipo === 'numero' ? 'decimal' : undefined} value={String(form[c.nome] ?? '')}
+                     onChange={e => setForm({ ...form, [c.nome]: c.tipo === 'numero' ? sanitizarDecimal(e.target.value) : e.target.value })} />
             )}
           </label>
         ))}
@@ -88,7 +104,11 @@ export default function Crud({ tabela, titulo, colunas, campos, ordem = 'criado_
         <tbody>
           {(linhas ?? []).map(l => (
             <tr key={l.id} className="border-b hover:bg-slate-50">
-              {colunas.map(c => <td key={c.nome} className="p-3">{String(l[c.nome] ?? '')}</td>)}
+              {colunas.map(c => (
+                <td key={c.nome} className="p-3">
+                  {campos.find(x => x.nome === c.nome)?.tipo === 'numero' ? decimalParaTexto(l[c.nome]) : String(l[c.nome] ?? '')}
+                </td>
+              ))}
               <td className="p-3"><button className="text-blue-700" onClick={() => abrirEdicao(l)}>Editar</button></td>
             </tr>
           ))}

@@ -8,6 +8,7 @@ import { calcularDosagemMarshall, interpolarNoTeor, interpolarValorNoTeor, type 
 import { calcularGranulometriaAgregado, combinarGranulometrias, type LinhaAgregado } from '../lib/calculos/agregadoGranulometria'
 import { gmmRice } from '../lib/calculos/teorBetume'
 import { calcularRtd } from '../lib/calculos/rtd'
+import { sanitizarDecimal, parseDecimal, decimalParaTexto } from '../lib/formato'
 
 interface LinhaCurva { peneira: string; passante: string; tolerancia: string }
 interface LinhaComposicao { origem: string; material: string; local: string; pct: string; densidade: string }
@@ -208,7 +209,8 @@ export default function DosagensPage() {
     prefillRef.current = editando.id
 
     const teorOtimoRaw = form.teor_otimo ?? editando.teor_otimo
-    const teorOtimo = teorOtimoRaw == null || teorOtimoRaw === '' ? NaN : Number(teorOtimoRaw)
+    const teorOtimo = teorOtimoRaw == null || teorOtimoRaw === '' ? NaN
+      : typeof teorOtimoRaw === 'number' ? teorOtimoRaw : (parseDecimal(String(teorOtimoRaw)) ?? NaN)
     const temTeor = Number.isFinite(teorOtimo) && teorOtimo > 0
 
     // --- Dosagem Marshall: índices interpolados no teor ótimo ---
@@ -508,13 +510,23 @@ export default function DosagensPage() {
         for (const c of CARACTERISTICAS_CBUQ) {
           const v = (parametros[c.key] ?? '').trim()
           if (v !== '') {
-            const n = Number(v)
-            if (!Number.isFinite(n)) throw new Error(`Valor inválido em "${c.label}".`)
+            const n = parseDecimal(v)
+            if (n === null || !Number.isFinite(n)) throw new Error(`Valor inválido em "${c.label}".`)
             p[c.key] = n
           }
         }
         if (parametros.adesividade) p.adesividade = parametros.adesividade
         parametros_projeto = Object.keys(p).length ? p : null
+      }
+
+      // Numéricos do formulário podem estar como texto com vírgula — converte aqui, com erro amigável.
+      const numOuNull = (k: string, rotulo: string): number | null => {
+        const v = form[k]
+        if (v === null || v === undefined || v === '') return null
+        if (typeof v === 'number') return v
+        const n = parseDecimal(String(v))
+        if (n === null || !Number.isFinite(n)) throw new Error(`Valor inválido em "${rotulo}" — use números com vírgula (ex.: 2,45).`)
+        return n
       }
 
       const payload = {
@@ -523,10 +535,10 @@ export default function DosagensPage() {
         nome: form.nome,
         empresa_id: form.empresa_id,
         especificacao_id: form.especificacao_id,
-        teor_otimo: form.teor_otimo ?? null,
-        dens_max_teorica_projeto: form.dens_max_teorica_projeto ?? null,
-        densidade_aparente_projeto: form.densidade_aparente_projeto ?? null,
-        densidade_ligante: form.densidade_ligante ?? null,
+        teor_otimo: numOuNull('teor_otimo', 'Teor ótimo (%)'),
+        dens_max_teorica_projeto: numOuNull('dens_max_teorica_projeto', 'Massa esp. Rice (g/cm³)'),
+        densidade_aparente_projeto: numOuNull('densidade_aparente_projeto', 'Massa esp. aparente (g/cm³)'),
+        densidade_ligante: numOuNull('densidade_ligante', 'Massa esp. do asfalto (g/cm³)'),
         curva_projeto,
         curva_tolerancias: Object.keys(curva_tolerancias).length ? curva_tolerancias : null,
         parametros_projeto,
@@ -611,15 +623,17 @@ export default function DosagensPage() {
     onError: (e: Error) => setErro(e.message),
   })
 
+  // Campos numéricos com VÍRGULA decimal: o estado guarda o texto digitado
+  // (sanitizado para ','), e a conversão para Number acontece só ao salvar.
   const num = (k: string) => ({
-    value: String(form[k] ?? ''), type: 'number', step: 'any',
-    onChange: (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [k]: Number(e.target.value) }),
+    value: decimalParaTexto(form[k]), type: 'text', inputMode: 'decimal' as const,
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [k]: sanitizarDecimal(e.target.value) }),
     className: 'w-full border rounded p-2',
   })
 
   const paramNum = (k: string) => ({
-    value: parametros[k] ?? '', type: 'number', step: 'any',
-    onChange: (e: React.ChangeEvent<HTMLInputElement>) => setParametros({ ...parametros, [k]: e.target.value }),
+    value: decimalParaTexto(parametros[k] ?? ''), type: 'text', inputMode: 'decimal' as const,
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => setParametros({ ...parametros, [k]: sanitizarDecimal(e.target.value) }),
     className: 'w-full border rounded p-2',
   })
 
