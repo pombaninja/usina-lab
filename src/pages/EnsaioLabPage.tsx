@@ -10,6 +10,11 @@ import IndiceFormaLabForm from '../components/ensaiolab/IndiceFormaLabForm'
 import EquivalenteAreiaLabForm from '../components/ensaiolab/EquivalenteAreiaLabForm'
 import DensidadeGraudoLabForm from '../components/ensaiolab/DensidadeGraudoLabForm'
 import DensidadeMiudoLabForm from '../components/ensaiolab/DensidadeMiudoLabForm'
+import MarshallLabForm from '../components/ensaiolab/MarshallLabForm'
+import TeorBetumeLabForm from '../components/ensaiolab/TeorBetumeLabForm'
+import GranulometriaMisturaLabForm from '../components/ensaiolab/GranulometriaMisturaLabForm'
+import RtdLabForm from '../components/ensaiolab/RtdLabForm'
+import RiceDmtLabForm from '../components/ensaiolab/RiceDmtLabForm'
 
 interface EnsaioLab {
   id: string
@@ -25,7 +30,7 @@ interface EnsaioLab {
 
 interface LaudoLinha { id: string; numero: string; status: string; revisao: number }
 
-// Formulário por tipo de ensaio (F3-A: agregado; CBUQ/CBUQF chegam na F3-B).
+// Formulário por tipo de ensaio (agregado da F3-A + CBUQ/CBUQF da F3-B).
 const FORMULARIOS: Record<string, ComponentType<FormEnsaioLabProps> | undefined> = {
   granulometria: GranulometriaLabForm,
   lamelaridade: LamelaridadeLabForm,
@@ -33,6 +38,11 @@ const FORMULARIOS: Record<string, ComponentType<FormEnsaioLabProps> | undefined>
   equivalente_areia: EquivalenteAreiaLabForm,
   densidade_graudo: DensidadeGraudoLabForm,
   densidade_miudo: DensidadeMiudoLabForm,
+  marshall: MarshallLabForm,
+  teor_betume: TeorBetumeLabForm,
+  granulometria_mistura: GranulometriaMisturaLabForm,
+  rtd: RtdLabForm,
+  rice_dmt: RiceDmtLabForm,
 }
 
 export default function EnsaioLabPage() {

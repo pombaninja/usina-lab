@@ -1,6 +1,5 @@
 // Tipos de ensaio de laboratório avulso (ensaios_lab.tipo_ensaio) e rótulos.
-// F3-A: só os ensaios de AGREGADO têm formulário; os de CBUQ/CBUQF chegam na F3-B
-// (aparecem desabilitados como "em breve" na criação).
+// F3-A entregou os ensaios de AGREGADO; F3-B completou os de CBUQ/CBUQF.
 
 export const TIPOS_AGREGADO = [
   'granulometria', 'lamelaridade', 'indice_forma', 'equivalente_areia',

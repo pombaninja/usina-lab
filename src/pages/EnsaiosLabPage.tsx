@@ -55,14 +55,10 @@ export default function EnsaiosLabPage() {
     (!filtroMaterial || e.material_tipo === filtroMaterial) &&
     (!filtroTipo || e.tipo_ensaio === filtroTipo)), [ensaios, filtroMaterial, filtroTipo])
 
-  // Em F3-A somente os ensaios de AGREGADO têm formulário; CBUQ/CBUQF chegam na F3-B.
-  const tipoHabilitado = novo.material_tipo === 'agregado'
-
   const criar = useMutation({
     mutationFn: async () => {
       if (!empresaSelecionada) throw new Error('Selecione a empresa emissora.')
       if (!novo.data) throw new Error('Informe a data do ensaio.')
-      if (!tipoHabilitado) throw new Error('Ensaios de CBUQ/CBUQF chegam na próxima fase.')
       const { data, error } = await supabase.from('ensaios_lab').insert({
         empresa_id: empresaSelecionada,
         data: novo.data,
@@ -122,7 +118,8 @@ export default function EnsaiosLabPage() {
               <select className={inp} value={novo.material_tipo}
                 onChange={e => {
                   const material_tipo = e.target.value
-                  setNovo({ ...novo, material_tipo, tipo_ensaio: material_tipo === 'agregado' ? 'granulometria' : TIPOS_CBUQ[0] })
+                  // Tipo padrão por material: granulometria (agregado) ou marshall (cbuq/cbuqf).
+                  setNovo({ ...novo, material_tipo, tipo_ensaio: material_tipo === 'agregado' ? 'granulometria' : 'marshall' })
                 }}>
                 {Object.entries(ROTULO_MATERIAL).map(([v, r]) => <option key={v} value={v}>{r}</option>)}
               </select></label>
@@ -133,18 +130,12 @@ export default function EnsaiosLabPage() {
               <input className={inp} value={novo.origem} onChange={e => setNovo({ ...novo, origem: e.target.value })} /></label>
             <label className="text-sm">Tipo de ensaio
               <select className={inp} value={novo.tipo_ensaio} onChange={e => setNovo({ ...novo, tipo_ensaio: e.target.value })}>
-                {novo.material_tipo === 'agregado'
-                  ? TIPOS_AGREGADO.map(t => <option key={t} value={t}>{ROTULO_TIPO_ENSAIO[t]}</option>)
-                  : TIPOS_CBUQ.map(t => <option key={t} value={t} disabled>{ROTULO_TIPO_ENSAIO[t]} (em breve)</option>)}
+                {(novo.material_tipo === 'agregado' ? TIPOS_AGREGADO : TIPOS_CBUQ)
+                  .map(t => <option key={t} value={t}>{ROTULO_TIPO_ENSAIO[t]}</option>)}
               </select></label>
           </div>
-          {!tipoHabilitado && (
-            <p className="text-sm text-amber-700 bg-amber-50 p-2 rounded">
-              Os ensaios de CBUQ/CBUQF chegam na próxima fase — por ora só os ensaios de agregado estão disponíveis.
-            </p>
-          )}
           <button className="bg-grp-600 hover:bg-grp-700 text-white rounded px-4 py-2 disabled:opacity-50"
-            disabled={criar.isPending || !tipoHabilitado} onClick={() => criar.mutate()}>
+            disabled={criar.isPending} onClick={() => criar.mutate()}>
             Criar ensaio
           </button>
           {erro && <p className="text-red-600 text-sm">{erro}</p>}
