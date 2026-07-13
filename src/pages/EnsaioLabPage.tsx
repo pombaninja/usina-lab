@@ -149,6 +149,10 @@ export default function EnsaioLabPage() {
 
   const Formulario = FORMULARIOS[ensaio.tipo_ensaio]
   const inp = 'border rounded p-2 w-full'
+  // Ensaio com laudo EMITIDO é imutável (trigger no banco); a tela desabilita a
+  // edição proativamente em vez de deixar o usuário esbarrar no erro do banco.
+  const laudoEmitido = (laudos ?? []).some(l => l.status === 'emitido')
+  const editavel = podeEditar && !laudoEmitido
 
   return (
     <div className="space-y-4">
@@ -159,21 +163,27 @@ export default function EnsaioLabPage() {
         <button className="text-sm text-blue-700 underline" onClick={() => nav('/ensaios-lab')}>Voltar aos ensaios</button>
       </div>
 
+      {laudoEmitido && (
+        <p className="text-sm text-grp-700 bg-grp-100 p-3 rounded">
+          Este ensaio pertence a um laudo <b>emitido</b> e é imutável. Os campos estão bloqueados.
+        </p>
+      )}
+
       <section className="bg-white p-4 rounded-xl shadow-sm grid sm:grid-cols-4 gap-3">
         <p className="text-sm sm:col-span-4"><span className="text-slate-500">Empresa:</span> <b>{ensaio.empresas?.nome_exibicao ?? '—'}</b></p>
         <label className="text-sm">Data
-          <input className={inp} type="date" value={cabecalho.data} disabled={!podeEditar}
+          <input className={inp} type="date" value={cabecalho.data} disabled={!editavel}
             onChange={e => setCabecalho({ ...cabecalho, data: e.target.value })} /></label>
         <label className="text-sm">Nome do material
-          <input className={inp} value={cabecalho.material_nome} disabled={!podeEditar}
+          <input className={inp} value={cabecalho.material_nome} disabled={!editavel}
             onChange={e => setCabecalho({ ...cabecalho, material_nome: e.target.value })} /></label>
         <label className="text-sm sm:col-span-2">Origem / amostra
-          <input className={inp} value={cabecalho.origem} disabled={!podeEditar}
+          <input className={inp} value={cabecalho.origem} disabled={!editavel}
             onChange={e => setCabecalho({ ...cabecalho, origem: e.target.value })} /></label>
       </section>
 
       {Formulario && carregado ? (
-        <Formulario dados={ensaio.dados ?? {}} podeEditar={podeEditar} salvando={salvar.isPending}
+        <Formulario dados={ensaio.dados ?? {}} podeEditar={editavel} salvando={salvar.isPending}
           salvarDados={(dados) => salvar.mutate(dados)} erro={erro} salvo={salvar.isSuccess && !erro} />
       ) : !Formulario ? (
         <p className="text-amber-700 bg-amber-50 p-3 rounded">
