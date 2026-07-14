@@ -17,7 +17,8 @@ export default function Layout() {
         <img src="/logo-grp.png" alt="Grupo Ribeiro Porto" className="h-9 w-auto" />
         <span className="font-bold text-grp-700 mr-4 whitespace-nowrap">Usina &amp; Laboratório</span>
         {perfis['ensaios_usina'] && <>
-          <NavLink to="/ensaios" className={navClasse}>Ensaios</NavLink>
+          {/* A aba "Ensaios" (ensaio CAUQ diário) saiu do menu a pedido do dono; as rotas
+              /ensaios* continuam ativas para laudos antigos que apontam para elas. */}
           <NavLink to="/ensaios-lab" className={navClasse}>Ensaios Lab</NavLink>
           <NavLink to="/laudos" className={navClasse}>Laudos</NavLink>
           <NavLink to="/dosagens" className={navClasse}>Projetos</NavLink>
