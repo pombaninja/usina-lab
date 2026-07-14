@@ -58,10 +58,17 @@ export default function Crud({ tabela, titulo, colunas, campos, ordem = 'criado_
         }
         registro[c.nome] = num
       }
-      const { error } = editando
-        ? await supabase.from(tabela).update(registro).eq(chave, editando[chave] as string)
-        : await supabase.from(tabela).insert(registro)
-      if (error) throw error
+      if (editando) {
+        // .select() no update para detectar bloqueio silencioso do RLS: sem permissão,
+        // o Supabase não dá erro — só não altera linha nenhuma. Aqui isso vira erro claro.
+        const { data, error } = await supabase.from(tabela).update(registro)
+          .eq(chave, editando[chave] as string).select(chave)
+        if (error) throw error
+        if (!data?.length) throw new Error('Nada foi salvo: seu perfil de acesso não tem permissão para alterar este cadastro.')
+      } else {
+        const { error } = await supabase.from(tabela).insert(registro)
+        if (error) throw error
+      }
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: [tabela] }); setForm({}); setEditando(null); setErro('') },
     onError: (e: Error) => setErro(e.message),
