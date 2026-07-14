@@ -789,71 +789,96 @@ export default function DosagensPage() {
         </form>
       )}
 
-      <table className="w-full bg-white rounded-xl shadow-sm text-sm">
-        <thead><tr className="text-left border-b"><th className="p-3">Nome</th><th>Rev.</th><th>Empresa</th><th>Especificação</th><th>Contexto/Tipo</th><th>Teor ótimo</th><th>Gmm</th><th /></tr></thead>
-        <tbody>{atuais.map(d => {
+      <div className="space-y-3">
+        {dosagens && atuais.length === 0 && <p className="text-sm text-slate-500">Nenhum projeto cadastrado.</p>}
+        {atuais.map(d => {
           const familia = String(d.projeto_pai_id ?? d.id)
           const historico = historicoPorFamilia.get(familia) ?? [d]
           const temHistorico = historico.length > 1
           const aberto = revisoesAbertas.has(familia)
+          // Estilos dos "pills" de ensaio (identidade GRP) e do pontinho colorido
+          // que preserva a cor histórica de cada link.
+          const pill = 'inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-700 transition hover:bg-grp-50 hover:border-grp-500 hover:text-grp-700'
+          const dot = 'inline-block h-1.5 w-1.5 rounded-full'
+          // Linha de metadados: mesmos campos das colunas antigas; segmento nulo é omitido.
+          const meta: string[] = []
+          if (d.empresas?.nome_exibicao) meta.push(d.empresas.nome_exibicao)
+          if (d.especificacoes?.nome) meta.push(d.especificacoes.nome)
+          const contextoTipo = [
+            CONTEXTO_LABEL[String(d.contexto ?? '')],
+            TIPO_LABEL[String(d.tipo ?? '')] ?? (d.tipo ? String(d.tipo) : undefined),
+          ].filter(Boolean).join(' · ')
+          if (contextoTipo) meta.push(contextoTipo)
+          if (d.teor_otimo != null && d.teor_otimo !== '') meta.push(`Teor ótimo ${String(d.teor_otimo)}%`)
+          if (d.dens_max_teorica_projeto != null && d.dens_max_teorica_projeto !== '') meta.push(`Gmm ${String(d.dens_max_teorica_projeto)}`)
           return (
-            <Fragment key={familia}>
-              <tr className="border-b">
-                <td className="p-3">{String(d.nome)}</td>
-                <td>Rev. {String(d.revisao ?? 0)}</td>
-                <td>{d.empresas?.nome_exibicao}</td>
-                <td>{d.especificacoes?.nome}</td>
-                <td>{CONTEXTO_LABEL[String(d.contexto ?? '')] ?? '—'} · {TIPO_LABEL[String(d.tipo ?? '')] ?? String(d.tipo ?? '—')}</td>
-                <td>{String(d.teor_otimo ?? '')}</td><td>{String(d.dens_max_teorica_projeto ?? '')}</td>
-                <td className="p-3 space-x-2 whitespace-nowrap">
+            <div key={familia} className="bg-white rounded-xl shadow-sm p-4 sm:p-5 space-y-3">
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <h2 className="text-lg font-semibold text-grp-700 break-words">{String(d.nome)}</h2>
+                <span className="whitespace-nowrap rounded-full bg-grp-100 px-2 py-0.5 text-xs font-medium text-grp-700">Rev. {String(d.revisao ?? 0)}</span>
+                <div className="ml-auto flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
                   {podeEditar && (
                     <>
-                      <button className="text-blue-700" disabled={salvar.isPending || criarRevisao.isPending || excluirProjeto.isPending} onClick={() => abrirEdicao(d)}>Editar</button>
-                      <button className="text-emerald-700" disabled={salvar.isPending || criarRevisao.isPending || excluirProjeto.isPending} onClick={() => criarRevisao.mutate(d.id)}>Criar revisão</button>
-                      <button className="text-red-600" disabled={salvar.isPending || criarRevisao.isPending || excluirProjeto.isPending} onClick={() => confirmarExclusao(d)}>Excluir</button>
+                      <button className="text-blue-700 hover:underline disabled:opacity-50" disabled={salvar.isPending || criarRevisao.isPending || excluirProjeto.isPending} onClick={() => abrirEdicao(d)}>Editar</button>
+                      <button className="text-emerald-700 hover:underline disabled:opacity-50" disabled={salvar.isPending || criarRevisao.isPending || excluirProjeto.isPending} onClick={() => criarRevisao.mutate(d.id)}>Criar revisão</button>
                     </>
                   )}
-                  {(d.tipo === 'cbuq' || d.tipo === 'cbuqf') && (
-                    <>
-                      <Link className="text-purple-700" to={`/projetos/${d.id}/marshall`}>Dosagem Marshall</Link>
-                      <Link className="text-lime-700" to={`/projetos/${d.id}/rice-teor`}>RICE-TEOR</Link>
-                      <Link className="text-amber-700" to={`/projetos/${d.id}/rtd`}>Ruptura Diametral</Link>
-                      <Link className="text-indigo-700" to={`/projetos/${d.id}/agregados`}>Agregados</Link>
-                      <Link className="text-teal-700" to={`/projetos/${d.id}/moldagem`}>Composição/Moldagem</Link>
-                      <Link className="text-fuchsia-700" to={`/projetos/${d.id}/densidades`}>Densidades</Link>
-                      <Link className="text-orange-700" to={`/projetos/${d.id}/complementares`}>Complementares</Link>
-                      <Link className="text-rose-700" to={`/projetos/${d.id}/indice-forma`}>Índice de forma</Link>
-                      <Link className="text-sky-700" to={`/projetos/${d.id}/lamelaridade`}>Lamelaridade</Link>
-                      <Link className="text-cyan-700" to={`/projetos/${d.id}/viscosidade`}>Viscosidade do CAP</Link>
-                      <Link className="text-slate-700" to={`/projetos/${d.id}/documento`}>Documento / PDF</Link>
-                    </>
-                  )}
-                </td>
-              </tr>
-              {temHistorico && (
-                <tr className="border-b bg-slate-50">
-                  <td colSpan={8} className="px-3 py-1 text-xs text-slate-500">
-                    <button type="button" className="underline" onClick={() => toggleRevisoes(familia)}>
+                  {temHistorico && (
+                    <button type="button" className="text-slate-600 hover:underline" onClick={() => toggleRevisoes(familia)}>
                       {aberto ? 'Ocultar revisões anteriores' : `Ver revisões (${historico.length})`}
                     </button>
-                    {aberto && (
-                      <ul className="mt-1 space-y-0.5">
-                        {historico.map(h => (
-                          <li key={h.id}>
-                            Rev. {String(h.revisao ?? 0)} — {String(h.nome)}
-                            {h.criado_em ? ` — ${new Date(h.criado_em).toLocaleDateString('pt-BR')}` : ''}
-                            {String(h.id) === String(d.id) ? ' (atual)' : ''}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </td>
-                </tr>
+                  )}
+                  {podeEditar && (
+                    <button className="text-red-600 hover:underline disabled:opacity-50" disabled={salvar.isPending || criarRevisao.isPending || excluirProjeto.isPending} onClick={() => confirmarExclusao(d)}>Excluir</button>
+                  )}
+                </div>
+              </div>
+
+              {meta.length > 0 && (
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-600">
+                  {meta.map((m, i) => (
+                    <Fragment key={i}>
+                      {i > 0 && <span className="text-slate-300">·</span>}
+                      <span>{m}</span>
+                    </Fragment>
+                  ))}
+                </div>
               )}
-            </Fragment>
+
+              {(d.tipo === 'cbuq' || d.tipo === 'cbuqf') && (
+                <div className="space-y-2">
+                  <h3 className="text-xs font-medium uppercase tracking-wide text-slate-400">Ensaios do projeto</h3>
+                  <div className="flex flex-wrap gap-2">
+                    <Link className={pill} to={`/projetos/${d.id}/marshall`}><span className={`${dot} bg-purple-700`} />Dosagem Marshall</Link>
+                    <Link className={pill} to={`/projetos/${d.id}/rice-teor`}><span className={`${dot} bg-lime-700`} />RICE-TEOR</Link>
+                    <Link className={pill} to={`/projetos/${d.id}/rtd`}><span className={`${dot} bg-amber-700`} />Ruptura Diametral</Link>
+                    <Link className={pill} to={`/projetos/${d.id}/agregados`}><span className={`${dot} bg-indigo-700`} />Agregados</Link>
+                    <Link className={pill} to={`/projetos/${d.id}/moldagem`}><span className={`${dot} bg-teal-700`} />Composição/Moldagem</Link>
+                    <Link className={pill} to={`/projetos/${d.id}/densidades`}><span className={`${dot} bg-fuchsia-700`} />Densidades</Link>
+                    <Link className={pill} to={`/projetos/${d.id}/complementares`}><span className={`${dot} bg-orange-700`} />Complementares</Link>
+                    <Link className={pill} to={`/projetos/${d.id}/indice-forma`}><span className={`${dot} bg-rose-700`} />Índice de forma</Link>
+                    <Link className={pill} to={`/projetos/${d.id}/lamelaridade`}><span className={`${dot} bg-sky-700`} />Lamelaridade</Link>
+                    <Link className={pill} to={`/projetos/${d.id}/viscosidade`}><span className={`${dot} bg-cyan-700`} />Viscosidade do CAP</Link>
+                    <Link className={pill} to={`/projetos/${d.id}/documento`}><span className={`${dot} bg-slate-700`} />Documento / PDF</Link>
+                  </div>
+                </div>
+              )}
+
+              {temHistorico && aberto && (
+                <ul className="ml-1 space-y-1 border-l-2 border-grp-100 pl-3 text-xs text-slate-500">
+                  {historico.map(h => (
+                    <li key={h.id}>
+                      Rev. {String(h.revisao ?? 0)} — {String(h.nome)}
+                      {h.criado_em ? ` — ${new Date(h.criado_em).toLocaleDateString('pt-BR')}` : ''}
+                      {String(h.id) === String(d.id) ? ' (atual)' : ''}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           )
-        })}</tbody>
-      </table>
+        })}
+      </div>
     </div>
   )
 }
