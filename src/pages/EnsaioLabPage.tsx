@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth, podeNoModulo } from '../lib/auth'
+import { sanitizarDecimal, parseDecimal } from '../lib/formato'
 import { ROTULO_MATERIAL, ROTULO_TIPO_ENSAIO, type FormEnsaioLabProps } from '../components/ensaiolab/tipos'
 import GranulometriaLabForm from '../components/ensaiolab/GranulometriaLabForm'
 import LamelaridadeLabForm from '../components/ensaiolab/LamelaridadeLabForm'
@@ -27,6 +28,13 @@ interface EnsaioLab {
   origem: string | null
   tipo_ensaio: string
   dados: Record<string, unknown>
+  periodo: string | null
+  cliente_obra_id: string | null
+  placa_caminhao: string | null
+  local_extracao: string | null
+  operador: string | null
+  temperatura_cap: number | null
+  observacoes: string | null
   empresas: { nome_exibicao: string } | null
 }
 
@@ -62,7 +70,13 @@ export default function EnsaioLabPage() {
   const podeEditar = podeNoModulo(perfis, 'ensaios_usina', 'lancador')
   const podeAprovar = podeNoModulo(perfis, 'ensaios_usina', 'avaliador')
 
-  const [cabecalho, setCabecalho] = useState({ data: '', material_nome: '', origem: '' })
+  const [cabecalho, setCabecalho] = useState({
+    data: '', material_nome: '', origem: '',
+    // Cabeçalho completo do CBUQ (espelho do Ensaio CAUQ diário) — só aparece
+    // quando material_tipo é cbuq/cbuqf; agregado mantém o cabeçalho simples.
+    periodo: '', cliente_obra_id: '', placa_caminhao: '', local_extracao: '',
+    operador: '', temperatura_cap: '', observacoes: '',
+  })
   const [carregado, setCarregado] = useState(false)
   const [erro, setErro] = useState('')
 
@@ -86,9 +100,31 @@ export default function EnsaioLabPage() {
     },
   })
 
+  // Cliente/Obra ativos para o cabeçalho CBUQ — espelho do select do CAUQ diário.
+  const materialCbuq = ensaio?.material_tipo === 'cbuq' || ensaio?.material_tipo === 'cbuqf'
+  const { data: obras } = useQuery({
+    queryKey: ['clientes_obras-ativas'],
+    enabled: materialCbuq,
+    queryFn: async () => {
+      const { data, error } = await supabase.from('clientes_obras')
+        .select('id, cliente, obra').eq('ativa', true).order('cliente')
+      if (error) throw error
+      return (data ?? []) as { id: string; cliente: string; obra: string | null }[]
+    },
+  })
+
   useEffect(() => {
     if (!ensaio || carregado) return
-    setCabecalho({ data: ensaio.data, material_nome: ensaio.material_nome ?? '', origem: ensaio.origem ?? '' })
+    setCabecalho({
+      data: ensaio.data, material_nome: ensaio.material_nome ?? '', origem: ensaio.origem ?? '',
+      periodo: ensaio.periodo ?? '',
+      cliente_obra_id: ensaio.cliente_obra_id ?? '',
+      placa_caminhao: ensaio.placa_caminhao ?? '',
+      local_extracao: ensaio.local_extracao ?? '',
+      operador: ensaio.operador ?? '',
+      temperatura_cap: ensaio.temperatura_cap != null ? String(ensaio.temperatura_cap).replace('.', ',') : '',
+      observacoes: ensaio.observacoes ?? '',
+    })
     setCarregado(true)
   }, [ensaio, carregado])
 
@@ -96,10 +132,21 @@ export default function EnsaioLabPage() {
   const salvar = useMutation({
     mutationFn: async (dados: Record<string, unknown>) => {
       if (!cabecalho.data) throw new Error('Informe a data do ensaio.')
+      const temperatura = parseDecimal(cabecalho.temperatura_cap)
+      if (temperatura != null && Number.isNaN(temperatura)) throw new Error('Temperatura do CAP inválida.')
       const { error } = await supabase.from('ensaios_lab').update({
         data: cabecalho.data,
         material_nome: cabecalho.material_nome.trim() || null,
         origem: cabecalho.origem.trim() || null,
+        // Cabeçalho completo (CBUQ/CBUQF); nos ensaios de agregado os campos
+        // ficam ocultos e o estado preserva o que veio do banco (via prefill).
+        periodo: cabecalho.periodo || null,
+        cliente_obra_id: cabecalho.cliente_obra_id || null,
+        placa_caminhao: cabecalho.placa_caminhao.trim() || null,
+        local_extracao: cabecalho.local_extracao.trim() || null,
+        operador: cabecalho.operador.trim() || null,
+        temperatura_cap: temperatura,
+        observacoes: cabecalho.observacoes.trim() || null,
         dados,
       }).eq('id', ensaioId)
       if (error) throw new Error('Falha ao salvar o ensaio: ' + error.message)
@@ -188,6 +235,35 @@ export default function EnsaioLabPage() {
         <label className="text-sm sm:col-span-2">Origem / amostra
           <input className={inp} value={cabecalho.origem} disabled={!editavel}
             onChange={e => setCabecalho({ ...cabecalho, origem: e.target.value })} /></label>
+        {materialCbuq && (<>
+          <label className="text-sm">Período
+            <select className={inp} value={cabecalho.periodo} disabled={!editavel}
+              onChange={e => setCabecalho({ ...cabecalho, periodo: e.target.value })}>
+              <option value="">—</option>
+              <option value="manha">Manhã</option><option value="tarde">Tarde</option><option value="noite">Noite</option>
+            </select></label>
+          <label className="text-sm">Cliente / Obra
+            <select className={inp} value={cabecalho.cliente_obra_id} disabled={!editavel}
+              onChange={e => setCabecalho({ ...cabecalho, cliente_obra_id: e.target.value })}>
+              <option value="">—</option>
+              {(obras ?? []).map(o => <option key={o.id} value={o.id}>{o.cliente}{o.obra ? ` — ${o.obra}` : ''}</option>)}
+            </select></label>
+          <label className="text-sm">Placa caminhão
+            <input className={inp} value={cabecalho.placa_caminhao} disabled={!editavel}
+              onChange={e => setCabecalho({ ...cabecalho, placa_caminhao: e.target.value })} /></label>
+          <label className="text-sm">Local de extração
+            <input className={inp} value={cabecalho.local_extracao} disabled={!editavel}
+              onChange={e => setCabecalho({ ...cabecalho, local_extracao: e.target.value })} /></label>
+          <label className="text-sm">Operador
+            <input className={inp} value={cabecalho.operador} disabled={!editavel}
+              onChange={e => setCabecalho({ ...cabecalho, operador: e.target.value })} /></label>
+          <label className="text-sm">Temp. CAP (°C)
+            <input className={inp} inputMode="decimal" value={cabecalho.temperatura_cap} disabled={!editavel}
+              onChange={e => setCabecalho({ ...cabecalho, temperatura_cap: sanitizarDecimal(e.target.value) })} /></label>
+          <label className="text-sm sm:col-span-4">Observações
+            <textarea className={inp} value={cabecalho.observacoes} disabled={!editavel}
+              onChange={e => setCabecalho({ ...cabecalho, observacoes: e.target.value })} /></label>
+        </>)}
       </section>
 
       {Formulario && carregado ? (

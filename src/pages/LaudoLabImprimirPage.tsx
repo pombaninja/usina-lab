@@ -705,8 +705,17 @@ interface LaudoLab {
   aprovado_em: string | null
   ensaio_lab_id: string
   empresas: { razao_social: string; nome_exibicao: string; cnpj: string | null; cabecalho: string | null; rodape: string | null }
-  ensaios_lab: { data: string; material_tipo: string; material_nome: string | null; origem: string | null; tipo_ensaio: string; dados: Record<string, unknown> } | null
+  ensaios_lab: {
+    data: string; material_tipo: string; material_nome: string | null; origem: string | null
+    tipo_ensaio: string; dados: Record<string, unknown>
+    periodo: string | null; placa_caminhao: string | null; local_extracao: string | null
+    operador: string | null; temperatura_cap: number | null; observacoes: string | null
+    clientes_obras: { cliente: string; obra: string | null } | null
+  } | null
 }
+
+// Rótulo pt-BR do período (ensaios_lab.periodo — check manha/tarde/noite).
+const ROTULO_PERIODO: Record<string, string> = { manha: 'Manhã', tarde: 'Tarde', noite: 'Noite' }
 
 export default function LaudoLabImprimirPage() {
   const { id } = useParams()
@@ -714,7 +723,7 @@ export default function LaudoLabImprimirPage() {
     queryKey: ['laudo-lab-print', id],
     queryFn: async () => {
       const { data, error } = await supabase.from('laudos')
-        .select('id, numero, revisao, status, emitido_em, aprovado_em, ensaio_lab_id, empresas(razao_social, nome_exibicao, cnpj, cabecalho, rodape), ensaios_lab(data, material_tipo, material_nome, origem, tipo_ensaio, dados)')
+        .select('id, numero, revisao, status, emitido_em, aprovado_em, ensaio_lab_id, empresas(razao_social, nome_exibicao, cnpj, cabecalho, rodape), ensaios_lab(data, material_tipo, material_nome, origem, tipo_ensaio, dados, periodo, placa_caminhao, local_extracao, operador, temperatura_cap, observacoes, clientes_obras(cliente, obra))')
         .eq('id', id).single()
       if (error) throw error
       return data as unknown as LaudoLab
@@ -759,8 +768,13 @@ export default function LaudoLabImprimirPage() {
         <p><b>Material:</b> {ROTULO_MATERIAL[e.material_tipo] ?? e.material_tipo}{e.material_nome ? ` — ${e.material_nome}` : ''}</p>
         <p><b>Ensaio:</b> {ROTULO_TIPO_ENSAIO[e.tipo_ensaio] ?? e.tipo_ensaio}</p>
         <p><b>Origem / amostra:</b> {e.origem ?? '—'}</p>
-        <p><b>Data do ensaio:</b> {new Date(e.data + 'T12:00').toLocaleDateString('pt-BR')}</p>
+        <p><b>Data do ensaio:</b> {new Date(e.data + 'T12:00').toLocaleDateString('pt-BR')}{e.periodo ? ` (${ROTULO_PERIODO[e.periodo] ?? e.periodo})` : ''}</p>
+        {e.clientes_obras && <p><b>Cliente / Obra:</b> {e.clientes_obras.cliente}{e.clientes_obras.obra ? ` — ${e.clientes_obras.obra}` : ''}</p>}
+        {(e.placa_caminhao || e.operador) && <p><b>Placa:</b> {e.placa_caminhao ?? '—'} · <b>Operador:</b> {e.operador ?? '—'}</p>}
+        {e.local_extracao && <p><b>Local de extração:</b> {e.local_extracao}</p>}
+        {e.temperatura_cap != null && <p><b>Temperatura do CAP:</b> {fmt(e.temperatura_cap, 1)} °C</p>}
         {vinculada && <p className="col-span-2"><b>Projeto vinculado:</b> {vinculada.nome} — Rev. {vinculada.revisao ?? 0}</p>}
+        {e.observacoes && <p className="col-span-2"><b>Observações:</b> {e.observacoes}</p>}
       </section>
 
       {e.tipo_ensaio === 'cbuq_completo'
