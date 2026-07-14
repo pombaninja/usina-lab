@@ -12,6 +12,7 @@ import EquipamentosPage from './pages/cadastros/EquipamentosPage'
 import EspecificacoesPage from './pages/cadastros/EspecificacoesPage'
 import TanquesPage from './pages/insumos/TanquesPage'
 import ProdutosInsumoPage from './pages/insumos/ProdutosInsumoPage'
+import TanquesSituacaoPage from './pages/insumos/TanquesSituacaoPage'
 import InsumosDiaPage from './pages/insumos/InsumosDiaPage'
 import EntradasPage from './pages/insumos/EntradasPage'
 import InsumosHistoricoPage from './pages/insumos/InsumosHistoricoPage'
@@ -56,6 +57,7 @@ export default function App() {
               <Route path="/insumos" element={<InsumosDiaPage />} />
               <Route path="/insumos/tanques" element={<TanquesPage />} />
               <Route path="/insumos/produtos" element={<ProdutosInsumoPage />} />
+              <Route path="/insumos/tanques-situacao" element={<TanquesSituacaoPage />} />
               <Route path="/insumos/entradas" element={<EntradasPage />} />
               <Route path="/insumos/historico" element={<InsumosHistoricoPage />} />
               <Route path="/dosagens" element={<DosagensPage />} />

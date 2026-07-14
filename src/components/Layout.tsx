@@ -24,6 +24,7 @@ export default function Layout() {
           <NavLink to="/dosagens" className={navClasse}>Projetos</NavLink>
         </>}
         {perfis['insumos'] && <>
+          <NavLink to="/insumos/tanques-situacao" className={navClasse}>Tanques</NavLink>
           <NavLink to="/insumos" end className={navClasse}>Insumos</NavLink>
           <NavLink to="/insumos/entradas" className={navClasse}>Entradas</NavLink>
           <NavLink to="/insumos/historico" className={navClasse}>Histórico</NavLink>

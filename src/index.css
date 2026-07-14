@@ -29,3 +29,14 @@
 
 /* Gráficos (recharts) sempre centralizados no seu bloco — telas e documentos impressos */
 .recharts-wrapper { margin-left: auto; margin-right: auto; }
+
+/* Onda dos tanques (Situação dos tanques): o caminho repete a cada 28px,
+   então transladar exatamente -28px faz o loop sem emenda. */
+@keyframes tanque-onda {
+  to { transform: translateX(-28px); }
+}
+.tanque-onda { animation: tanque-onda 2.6s linear infinite; }
+.tanque-onda-lenta { animation-duration: 4.2s; animation-delay: -1.4s; }
+@media (prefers-reduced-motion: reduce) {
+  .tanque-onda { animation-play-state: paused; }
+}
