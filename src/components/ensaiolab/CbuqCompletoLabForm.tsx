@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import type { FormEnsaioLabProps } from './tipos'
 import { ROTULO_TIPO_ENSAIO, SECOES_CBUQ_COMPLETO } from './tipos'
 import { useDosagemFaixas } from './useDosagemFaixas'
+import { CbuqCompletoLaudo } from './AnaliticoCbuq'
 import TeorBetumeLabForm from './TeorBetumeLabForm'
 import GranulometriaMisturaLabForm from './GranulometriaMisturaLabForm'
 import ResistenciaCompressaoLabForm from './ResistenciaCompressaoLabForm'
@@ -161,6 +162,34 @@ export default function CbuqCompletoLabForm({ dados, podeEditar, salvando, salva
           </section>
         )
       })}
+
+      {/* Resultados consolidados na TELA (como no laudo impresso): tabelas
+          analíticas + gráfico granulométrico, reusando os MESMOS componentes de
+          AnaliticoCbuq que o laudo imprime. Fonte: props.dados (verdade do
+          servidor, reconsultada após cada save) — caminho simples e honesto:
+          a seção atualiza depois de salvar cada bloco ("conforme salvo"), sem
+          espelhar digitação ao vivo. salvosLocais é ref (não re-renderiza), por
+          isso NÃO entra aqui. Seções ausentes são puladas pelo próprio
+          CbuqCompletoLaudo. */}
+      <section className="space-y-2">
+        <h2 className="font-semibold text-lg text-grp-700 border-b border-grp-600 pb-1">
+          Resultados do ensaio (analítico)
+        </h2>
+        <div className="bg-white p-4 rounded-xl shadow-sm text-sm">
+          <p className="text-xs text-slate-500 mb-3">
+            Visão consolidada dos resultados <b>conforme salvo</b> — igual ao laudo impresso.
+            Salve cada seção acima para atualizar; a granulometria usa as faixas do projeto vinculado.
+          </p>
+          {SECOES_CBUQ_COMPLETO.some(chave => {
+            const s = dados[chave] as Record<string, unknown> | undefined
+            return !!s && Object.keys(s).length > 0
+          }) ? (
+            <CbuqCompletoLaudo dados={dados} especificacao={vinculada?.especificacao ?? undefined} />
+          ) : (
+            <p className="text-sm text-slate-500">Nenhuma seção salva ainda — os resultados aparecem aqui após o primeiro salvamento.</p>
+          )}
+        </div>
+      </section>
     </div>
   )
 }

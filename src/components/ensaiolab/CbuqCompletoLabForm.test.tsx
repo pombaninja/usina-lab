@@ -60,6 +60,32 @@ describe('CbuqCompletoLabForm', () => {
     expect(html).not.toContain('tração diametral')
   })
 
+  it('mostra Resultados do ensaio (analítico) consolidados a partir dos dados salvos', () => {
+    const html = render({
+      dados: {
+        teor_betume: { metodo: 'soxhlet', amostra_com_betume: 1200, amostra_sem_betume: 1140, umidade_pct: 0 },
+        resistencia_compressao: { constante_prensa: 1.79, cps: [{ cp: 1, leitura: 640, diametro_cm: 10 }] },
+      },
+    })
+    // Bloco de resultados na tela ("conforme salvo"), reusando os componentes
+    // analíticos do laudo (AnaliticoCbuq) — os títulos de laudo só existem aqui.
+    expect(html).toContain('Resultados do ensaio (analítico)')
+    expect(html).toContain('conforme salvo')
+    expect(html).toContain('Teor de betume — método Soxhlet')
+    // Teor = ((1200 − 1140) / 1200) × 100 − 0 = 5,00 %
+    expect(html).toContain('5,00')
+    // RC = (640 × 1,79) / (π·10²/4) ÷ 10 = 1145,6 / 78,5398 / 10 = 1,459 MPa
+    expect(html).toContain('1,459')
+    // Seções ausentes (granulometria, Rice/DMT) são puladas sem quebrar.
+    expect(html).not.toContain('Análise Granulométrica da Mistura')
+  })
+
+  it('sem nenhuma seção salva, o bloco de resultados mostra o aviso', () => {
+    const html = render({ dados: {} })
+    expect(html).toContain('Resultados do ensaio (analítico)')
+    expect(html).toContain('Nenhuma seção salva ainda')
+  })
+
   it('todo save da seção preserva as chaves legadas (merge espalha ...dados)', () => {
     // Verificação direta da regra de preservação: o mesmo merge de salvarSecao
     // ({ ...dados, ...salvosLocais }) nunca descarta chaves irmãs/legadas.
