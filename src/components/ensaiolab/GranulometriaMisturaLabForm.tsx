@@ -3,12 +3,18 @@ import { calcularGranulometria, type PeneiraLeitura } from '../../lib/calculos/g
 import GraficoGranulometria from '../GraficoGranulometria'
 import { fmt, sanitizarDecimal, parseDecimal, decimalParaTexto } from '../../lib/formato'
 import type { FormEnsaioLabProps } from './tipos'
+import type { EspecificacaoMistura } from './useDosagemFaixas'
 
-// Granulometria da MISTURA (CBUQ/CBUQF) avulsa — espelho da seção de granulometria
-// do ensaio CAUQ diário (EnsaioCauqPage): peso total + retido acumulado por peneira
-// → % passando via calcularGranulometria (golden-testada), SEM faixas de
-// especificação (ensaio avulso). dados jsonb espelha cauq_granulometria:
-// { peso_total, leituras: [{peneira, abertura_mm, retido_acum}] }.
+// Granulometria da MISTURA (CBUQ/CBUQF) — espelho da seção de granulometria do
+// ensaio CAUQ diário (EnsaioCauqPage): peso total + retido acumulado por peneira
+// → % passando via calcularGranulometria (golden-testada). dados jsonb espelha
+// cauq_granulometria: { peso_total, leituras: [{peneira, abertura_mm, retido_acum}] }.
+//
+// `especificacao` (prop extra OPCIONAL, passada só pelo composto CBUQ completo
+// quando há dosagem/projeto vinculado) traz as faixas: com ela o cálculo ganha
+// Esp. mín/máx + Trab. mín/máx (curva_projeto ± tolerância, cortada na
+// especificação — mesma semântica do diário) e o gráfico mostra as 5 curvas.
+// Sem ela, comportamento inalterado (ensaio avulso: só a curva da mistura).
 
 interface LeituraForm { peneira: string; abertura: string; retido: string }
 
@@ -25,7 +31,7 @@ interface DadosGranMistura {
   leituras?: { peneira: string; abertura_mm: number; retido_acum: number }[]
 }
 
-export default function GranulometriaMisturaLabForm({ dados, podeEditar, salvando, salvarDados, erro, salvo }: FormEnsaioLabProps) {
+export default function GranulometriaMisturaLabForm({ dados, podeEditar, salvando, salvarDados, erro, salvo, especificacao }: FormEnsaioLabProps & { especificacao?: EspecificacaoMistura }) {
   const d = dados as DadosGranMistura
   const [pesoTotal, setPesoTotal] = useState(() => decimalParaTexto(d.peso_total))
   const [leituras, setLeituras] = useState<LeituraForm[]>(() =>
@@ -51,12 +57,13 @@ export default function GranulometriaMisturaLabForm({ dados, podeEditar, salvand
     const peso = parseDecimal(pesoTotal)
     if (peso === null || !Number.isFinite(peso) || !leiturasValidas.length) return null
     try {
-      // Sem faixas: ensaio avulso não tem especificação vinculada.
-      return { ok: true, r: calcularGranulometria(peso, leiturasValidas) }
+      // Com especificação (projeto vinculado no composto): faixas de espec e de
+      // trabalho — mesma semântica do CAUQ diário. Sem ela: só a curva da mistura.
+      return { ok: true, r: calcularGranulometria(peso, leiturasValidas, especificacao?.faixas, especificacao?.curvaProjeto) }
     } catch (e) {
       return { ok: false, problema: (e as Error).message }
     }
-  }, [pesoTotal, leiturasValidas])
+  }, [pesoTotal, leiturasValidas, especificacao])
 
   function salvar() {
     const peso = parseDecimal(pesoTotal)
@@ -70,6 +77,7 @@ export default function GranulometriaMisturaLabForm({ dados, podeEditar, salvand
     })
   }
 
+  const comFaixas = !!especificacao
   const inpNum = 'border rounded p-1 w-24'
 
   return (
@@ -80,7 +88,9 @@ export default function GranulometriaMisturaLabForm({ dados, podeEditar, salvand
       </div>
       <p className="text-sm text-slate-500">
         Peso retido acumulado por peneira (g). % passando = 100 − retida acumulada / peso total.
-        Sem especificação vinculada, o gráfico mostra apenas a curva da mistura.
+        {comFaixas
+          ? ' Especificação do projeto vinculado: faixa de trabalho = curva de projeto ± tolerância, cortada nos limites da especificação.'
+          : ' Sem especificação vinculada, o gráfico mostra apenas a curva da mistura.'}
       </p>
 
       <label className="text-sm">Peso total (g)
@@ -92,7 +102,9 @@ export default function GranulometriaMisturaLabForm({ dados, podeEditar, salvand
           <thead>
             <tr className="text-left border-b">
               <th className="p-2">Peneira</th><th>Abertura (mm)</th><th>Retido acum. (g)</th>
-              <th>% retida acum.</th><th>% Passando</th><th />
+              <th>% retida acum.</th><th>% Passando</th>
+              {comFaixas && <><th>Esp. mín</th><th>Esp. máx</th><th>Trab. mín</th><th>Trab. máx</th><th>Situação</th></>}
+              <th />
             </tr>
           </thead>
           <tbody>
@@ -108,6 +120,17 @@ export default function GranulometriaMisturaLabForm({ dados, podeEditar, salvand
                     onChange={e => alterarLeitura(i, 'retido', e.target.value)} /></td>
                   <td className="p-2">{linha ? fmt(linha.pctRetidaAcum, 1) : '—'}</td>
                   <td className="p-2 font-semibold">{linha ? fmt(linha.pctPassando, 1) : '—'}</td>
+                  {comFaixas && <>
+                    <td className="p-2">{linha?.espMin !== undefined ? fmt(linha.espMin, 1) : '—'}</td>
+                    <td className="p-2">{linha?.espMax !== undefined ? fmt(linha.espMax, 1) : '—'}</td>
+                    <td className="p-2">{linha?.trabMin !== undefined ? fmt(linha.trabMin, 1) : '—'}</td>
+                    <td className="p-2">{linha?.trabMax !== undefined ? fmt(linha.trabMax, 1) : '—'}</td>
+                    <td className="p-2">
+                      {linha?.conforme === true && <span className="text-green-600 font-semibold">Conforme</span>}
+                      {linha?.conforme === false && <span className="text-red-600 font-semibold">NÃO CONFORME</span>}
+                      {linha?.conforme === undefined && '—'}
+                    </td>
+                  </>}
                   <td>{podeEditar && leituras.length > 1 && (
                     <button type="button" className="text-red-600 text-xs" onClick={() => removerPeneira(i)}>×</button>
                   )}</td>
@@ -119,6 +142,11 @@ export default function GranulometriaMisturaLabForm({ dados, podeEditar, salvand
       </div>
 
       {resultado && !resultado.ok && <p className="text-amber-700 bg-amber-50 p-3 rounded">{resultado.problema}</p>}
+      {resultado?.ok && comFaixas && (
+        <p className={`text-sm font-semibold ${resultado.r.conforme ? 'text-green-700' : 'text-red-600'}`}>
+          {resultado.r.conforme ? 'Curva DENTRO da faixa de trabalho.' : 'Curva FORA da faixa de trabalho.'}
+        </p>
+      )}
       {resultado?.ok && <GraficoGranulometria linhas={resultado.r.linhas} largura={640} />}
 
       {podeEditar && (

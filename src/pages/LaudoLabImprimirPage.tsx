@@ -9,6 +9,7 @@ import { calcularMarshall, fatorCorrecaoPorVolume } from '../lib/calculos/marsha
 import { teorRotarex, gmmRice } from '../lib/calculos/teorBetume'
 import { calcularRtd } from '../lib/calculos/rtd'
 import { calcularGranulometria, type LinhaGranulometria } from '../lib/calculos/granulometria'
+import { useDosagemFaixas, type EspecificacaoMistura } from '../components/ensaiolab/useDosagemFaixas'
 import { calcularGranulometriaAgregado, type PeneiraRef, type DeterminacaoAgregado } from '../lib/calculos/agregadoGranulometria'
 import { calcularLamelaridade, PENEIRAS_LAMELARIDADE, FRACOES_LAMELARIDADE } from '../lib/calculos/lamelaridade'
 import { indiceLamelaridade } from '../lib/calculos/indiceForma'
@@ -210,23 +211,33 @@ function TeorBetumeLaudo({ dados }: { dados: Record<string, unknown> }) {
   )
 }
 
-function GranulometriaMisturaLaudo({ dados }: { dados: Record<string, unknown> }) {
+function GranulometriaMisturaLaudo({ dados, especificacao }: { dados: Record<string, unknown>; especificacao?: EspecificacaoMistura }) {
   const d = dados as { peso_total?: number; leituras?: { peneira: string; abertura_mm: number; retido_acum: number }[] }
+  const comFaixas = !!especificacao
   const calc = useMemo(() => {
     if (d.peso_total == null || !d.leituras?.length) return null
     try {
-      // Sem faixas: ensaio avulso não tem especificação vinculada.
-      return calcularGranulometria(d.peso_total, d.leituras.map(l => ({ peneira: l.peneira, aberturaMm: l.abertura_mm, retidoAcum: l.retido_acum })))
+      // Com especificação (projeto vinculado no CBUQ completo): faixas de espec e
+      // de trabalho — mesma semântica do CAUQ diário. Sem ela: só a curva.
+      return calcularGranulometria(
+        d.peso_total,
+        d.leituras.map(l => ({ peneira: l.peneira, aberturaMm: l.abertura_mm, retidoAcum: l.retido_acum })),
+        especificacao?.faixas, especificacao?.curvaProjeto,
+      )
     } catch { return null }
-  }, [d])
+  }, [d, especificacao])
   if (!calc) return null
   return (
     <Secao titulo="Análise Granulométrica da Mistura — DNER-ME 083/98">
-      <p className="text-[9px] text-slate-600 mb-1">Peso total da amostra: <b>{fmt(d.peso_total, 1)} g</b></p>
+      <p className="text-[9px] text-slate-600 mb-1">
+        Peso total da amostra: <b>{fmt(d.peso_total, 1)} g</b>
+        {comFaixas && <> · Faixa de trabalho = curva de projeto ± tolerância, cortada nos limites da especificação · Situação geral: <b className={calc.conforme ? 'text-green-700' : 'text-red-600'}>{calc.conforme ? 'CONFORME' : 'NÃO CONFORME'}</b></>}
+      </p>
       <table className="w-full border mb-3">
         <thead><tr className="bg-grp-100">
           <th className={th}>Peneira</th><th className={th}>mm</th>
           <th className={th}>Retido acum. (g)</th><th className={th}>% retida acum.</th><th className={th}>% Passando</th>
+          {comFaixas && <><th className={th}>Esp. mín</th><th className={th}>Esp. máx</th><th className={th}>Trab. mín</th><th className={th}>Trab. máx</th><th className={th}>Situação</th></>}
         </tr></thead>
         <tbody>{calc.linhas.map((l: LinhaGranulometria) => (
           <tr key={l.peneira}>
@@ -235,6 +246,17 @@ function GranulometriaMisturaLaudo({ dados }: { dados: Record<string, unknown> }
             <td className={td}>{fmt(l.retidoAcum, 1)}</td>
             <td className={td}>{fmt(l.pctRetidaAcum, 1)}</td>
             <td className={`${td} font-semibold`}>{fmt(l.pctPassando, 1)}</td>
+            {comFaixas && <>
+              <td className={td}>{l.espMin !== undefined ? fmt(l.espMin, 1) : '—'}</td>
+              <td className={td}>{l.espMax !== undefined ? fmt(l.espMax, 1) : '—'}</td>
+              <td className={td}>{l.trabMin !== undefined ? fmt(l.trabMin, 1) : '—'}</td>
+              <td className={td}>{l.trabMax !== undefined ? fmt(l.trabMax, 1) : '—'}</td>
+              <td className={td}>
+                {l.conforme === true && <span className="text-green-700 font-semibold">Conforme</span>}
+                {l.conforme === false && <span className="text-red-600 font-semibold">NÃO CONFORME</span>}
+                {l.conforme === undefined && '—'}
+              </td>
+            </>}
           </tr>
         ))}</tbody>
       </table>
@@ -305,12 +327,13 @@ function RiceDmtLaudo({ dados }: { dados: Record<string, unknown> }) {
   )
 }
 
-// Ensaio CBUQ COMPLETO (composto): dados = { marshall?, teor_betume?,
-// granulometria_mistura?, rtd?, rice_dmt? } — cada chave com o MESMO sub-shape do
-// ensaio individual. Renderiza TODAS as seções analíticas presentes, em sequência,
-// num único PDF; chaves ausentes são puladas (e cada seção já retorna null se as
-// entradas forem insuficientes).
-function CbuqCompletoLaudo({ dados }: { dados: Record<string, unknown> }) {
+// Ensaio CBUQ COMPLETO (composto): dados = { dosagem_id?, marshall?, teor_betume?,
+// granulometria_mistura?, rtd?, rice_dmt? } — cada chave de seção com o MESMO
+// sub-shape do ensaio individual. Renderiza TODAS as seções analíticas presentes,
+// em sequência, num único PDF; chaves ausentes são puladas (e cada seção já retorna
+// null se as entradas forem insuficientes). `especificacao` (do projeto vinculado
+// por dados.dosagem_id) vai só para a granulometria da mistura (faixas + 5 curvas).
+function CbuqCompletoLaudo({ dados, especificacao }: { dados: Record<string, unknown>; especificacao?: EspecificacaoMistura }) {
   const secoes: [string, (props: { dados: Record<string, unknown> }) => React.ReactNode][] = [
     ['marshall', MarshallLaudo],
     ['teor_betume', TeorBetumeLaudo],
@@ -323,6 +346,9 @@ function CbuqCompletoLaudo({ dados }: { dados: Record<string, unknown> }) {
       {secoes.map(([chave, Bloco]) => {
         const sub = dados[chave] as Record<string, unknown> | undefined
         if (!sub || !Object.keys(sub).length) return null
+        if (chave === 'granulometria_mistura') {
+          return <GranulometriaMisturaLaudo key={chave} dados={sub} especificacao={especificacao} />
+        }
         return <Bloco key={chave} dados={sub} />
       })}
     </>
@@ -644,6 +670,15 @@ export default function LaudoLabImprimirPage() {
     },
   })
 
+  // Projeto vinculado do CBUQ completo (dados.dosagem_id, opcional): traz nome do
+  // projeto p/ o cabeçalho e as faixas da especificação p/ a curva da mistura.
+  // Hook SEMPRE chamado (regras de hooks) — a query só roda quando há dosagem_id.
+  const ensaioLab = laudo?.ensaios_lab
+  const dosagemId = ensaioLab?.tipo_ensaio === 'cbuq_completo' && typeof ensaioLab.dados?.dosagem_id === 'string'
+    ? ensaioLab.dados.dosagem_id
+    : undefined
+  const { data: vinculada } = useDosagemFaixas(dosagemId)
+
   if (!laudo) return <p>Carregando…</p>
   const e = laudo.ensaios_lab
   if (!e) return <p className="text-red-600">Este laudo não é de um ensaio de laboratório avulso.</p>
@@ -674,11 +709,14 @@ export default function LaudoLabImprimirPage() {
         <p><b>Ensaio:</b> {ROTULO_TIPO_ENSAIO[e.tipo_ensaio] ?? e.tipo_ensaio}</p>
         <p><b>Origem / amostra:</b> {e.origem ?? '—'}</p>
         <p><b>Data do ensaio:</b> {new Date(e.data + 'T12:00').toLocaleDateString('pt-BR')}</p>
+        {vinculada && <p className="col-span-2"><b>Projeto vinculado:</b> {vinculada.nome} — Rev. {vinculada.revisao ?? 0}</p>}
       </section>
 
-      {Corpo
-        ? <Corpo dados={e.dados ?? {}} />
-        : <p className="text-amber-700">Tipo de ensaio sem seção analítica cadastrada: {e.tipo_ensaio}</p>}
+      {e.tipo_ensaio === 'cbuq_completo'
+        ? <CbuqCompletoLaudo dados={e.dados ?? {}} especificacao={vinculada?.especificacao ?? undefined} />
+        : Corpo
+          ? <Corpo dados={e.dados ?? {}} />
+          : <p className="text-amber-700">Tipo de ensaio sem seção analítica cadastrada: {e.tipo_ensaio}</p>}
 
       <footer className="mt-10 grid grid-cols-2 gap-8 text-center doc-evitar-quebra">
         <div className="border-t pt-2">Laboratorista<br /><b>&nbsp;</b></div>
