@@ -5,7 +5,7 @@ import { calcularAgregadoMes, type LancamentoMes } from '../../lib/calculos/insu
 import { fmt } from '../../lib/formato'
 import { limitesDoMes, mesAtualLocal } from '../../lib/datas'
 
-interface TanqueTodo { id: string; codigo: string; nome: string; produto: 'cap' | 'oleo_queima' | 'oleo_termico'; unidade: string }
+interface TanqueTodo { id: string; codigo: string; nome: string; produto: string; unidade: string }
 
 export default function InsumosHistoricoPage() {
   const [mes, setMes] = useState(mesAtualLocal())

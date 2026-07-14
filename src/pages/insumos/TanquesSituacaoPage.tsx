@@ -6,7 +6,7 @@ import TanqueSvg from '../../components/TanqueSvg'
 
 interface Tanque {
   id: string; codigo: string; nome: string
-  produto: 'cap' | 'oleo_queima' | 'oleo_termico'
+  produto: string // slug em insumo_produtos (cadastro livre)
   unidade: string; capacidade: number | null; estoque_minimo: number
   formato: 'vertical' | 'horizontal'; ativa: boolean
 }

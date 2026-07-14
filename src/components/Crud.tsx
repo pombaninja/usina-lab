@@ -8,6 +8,9 @@ export interface Campo {
   tipo: 'texto' | 'numero' | 'select' | 'checkbox' | 'cor'
   opcoes?: { valor: string; rotulo: string }[]
   obrigatorio?: boolean
+  /** Validação extra ao salvar: recebe o valor do formulário e devolve a
+   *  mensagem de erro (ou null se válido). Ex.: formato de slug. */
+  validar?: (valor: unknown) => string | null
 }
 export interface CrudProps {
   tabela: string; titulo: string
@@ -18,6 +21,9 @@ export interface CrudProps {
   chave?: string
   /** false = tabela de linhas fixas: sem criar, só editar (formulário aparece ao clicar Editar). */
   permitirCriar?: boolean
+  /** Campos travados na EDIÇÃO (inputs desabilitados) — ex.: a chave 'produto',
+   *  referenciada por FK, não muda depois de criada. Na criação seguem editáveis. */
+  camposImutaveisNaEdicao?: string[]
 }
 type Registro = Record<string, unknown>
 
@@ -25,7 +31,7 @@ type Registro = Record<string, unknown>
 const corValida = (v: unknown): string =>
   typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v) ? v.toLowerCase() : '#000000'
 
-export default function Crud({ tabela, titulo, colunas, campos, ordem = 'criado_em', chave = 'id', permitirCriar = true }: CrudProps) {
+export default function Crud({ tabela, titulo, colunas, campos, ordem = 'criado_em', chave = 'id', permitirCriar = true, camposImutaveisNaEdicao }: CrudProps) {
   const qc = useQueryClient()
   const [editando, setEditando] = useState<Registro | null>(null)
   const [form, setForm] = useState<Record<string, unknown>>({})
@@ -45,6 +51,8 @@ export default function Crud({ tabela, titulo, colunas, campos, ordem = 'criado_
       for (const c of campos) {
         if (c.obrigatorio && !form[c.nome] && form[c.nome] !== false)
           throw new Error(`Preencha o campo "${c.rotulo}"`)
+        const msgValidacao = c.validar?.(form[c.nome])
+        if (msgValidacao) throw new Error(msgValidacao)
       }
       // Campos numéricos ficam como texto com vírgula no estado; converte para Number só aqui.
       const registro: Record<string, unknown> = { ...form }
@@ -86,33 +94,38 @@ export default function Crud({ tabela, titulo, colunas, campos, ordem = 'criado_
       {(permitirCriar || editando) && (
       <form onSubmit={e => { e.preventDefault(); salvar.mutate() }}
             className="bg-white p-4 rounded-xl shadow-sm grid grid-cols-3 gap-3 items-end">
-        {campos.map(c => (
+        {campos.map(c => {
+          const imutavel = !!editando && (camposImutaveisNaEdicao?.includes(c.nome) ?? false)
+          return (
           <label key={c.nome} className="text-sm">
             <span className="block text-slate-600 mb-1">{c.rotulo}{c.obrigatorio && ' *'}</span>
             {c.tipo === 'select' ? (
-              <select className="w-full border rounded p-2" value={String(form[c.nome] ?? '')}
+              <select className="w-full border rounded p-2 disabled:bg-slate-100 disabled:text-slate-500" disabled={imutavel}
+                      value={String(form[c.nome] ?? '')}
                       onChange={e => setForm({ ...form, [c.nome]: e.target.value })}>
                 <option value="">—</option>
                 {c.opcoes?.map(o => <option key={o.valor} value={o.valor}>{o.rotulo}</option>)}
               </select>
             ) : c.tipo === 'checkbox' ? (
-              <input type="checkbox" checked={!!form[c.nome]}
+              <input type="checkbox" checked={!!form[c.nome]} disabled={imutavel}
                      onChange={e => setForm({ ...form, [c.nome]: e.target.checked })} />
             ) : c.tipo === 'cor' ? (
               <span className="flex items-center gap-2">
-                <input type="color" className="h-9 w-14 border rounded cursor-pointer" value={corValida(form[c.nome])}
+                <input type="color" className="h-9 w-14 border rounded cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+                       disabled={imutavel} value={corValida(form[c.nome])}
                        onChange={e => setForm({ ...form, [c.nome]: corValida(e.target.value) })} />
                 <span className="text-slate-500 text-xs font-mono">{corValida(form[c.nome])}</span>
               </span>
             ) : (
               // Numérico: texto com teclado decimal — aceita ',' e '.', padroniza em ','
               // e só converte para Number ao salvar (permite digitar "0,075").
-              <input className="w-full border rounded p-2" type="text"
+              <input className="w-full border rounded p-2 disabled:bg-slate-100 disabled:text-slate-500" type="text" disabled={imutavel}
                      inputMode={c.tipo === 'numero' ? 'decimal' : undefined} value={String(form[c.nome] ?? '')}
                      onChange={e => setForm({ ...form, [c.nome]: c.tipo === 'numero' ? sanitizarDecimal(e.target.value) : e.target.value })} />
             )}
           </label>
-        ))}
+          )
+        })}
         <div className="flex gap-2">
           <button className="bg-grp-600 hover:bg-grp-700 text-white rounded px-4 py-2 disabled:opacity-50" disabled={salvar.isPending}>{editando ? 'Atualizar' : 'Adicionar'}</button>
           {editando && <button type="button" className="border rounded px-3" onClick={() => { setEditando(null); setForm({}) }}>Cancelar</button>}

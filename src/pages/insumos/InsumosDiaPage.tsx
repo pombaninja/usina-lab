@@ -7,7 +7,7 @@ import { hojeLocal } from '../../lib/datas'
 
 interface Tanque {
   id: string; codigo: string; nome: string
-  produto: 'cap' | 'oleo_queima' | 'oleo_termico'
+  produto: string // slug em insumo_produtos (cadastro livre)
   unidade: string; estoque_minimo: number; tem_horimetro: boolean; ativa: boolean
 }
 interface LinhaForm {

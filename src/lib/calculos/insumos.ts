@@ -1,5 +1,8 @@
 export interface LeituraTanque {
-  tanqueId: string; produto: 'cap' | 'oleo_queima' | 'oleo_termico'
+  /** Slug em insumo_produtos (cadastro livre). Os indicadores do dia continuam
+   *  específicos de 'cap' | 'oleo_queima' | 'oleo_termico'; leituras de outros
+   *  produtos (ex.: 'emulsao') não entram nesses somatórios. */
+  tanqueId: string; produto: string
   volumeInicial?: number | null; volumeFinal?: number | null
   horimetroLigou?: number | null; horimetroDesligou?: number | null
 }
@@ -41,7 +44,7 @@ export function saldoTanque(saldoAnterior: number, entradas: number, deslocadoDi
 // ===== agregação mensal (tipos de entrada neutros — arrays de objetos simples) =====
 export interface TanqueMin {
   id: string
-  produto: 'cap' | 'oleo_queima' | 'oleo_termico'
+  produto: string
 }
 export interface LeituraRow {
   tanque_id: string
