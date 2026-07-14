@@ -74,6 +74,11 @@ export default function Crud({ tabela, titulo, colunas, campos, ordem = 'criado_
         if (error) throw error
         if (!data?.length) throw new Error('Nada foi salvo: seu perfil de acesso não tem permissão para alterar este cadastro.')
       } else {
+        // No INSERT, campo deixado vazio (null) sai do payload para valer o
+        // DEFAULT do banco (ex.: baias.estoque_atual 0, cor '#64748b') — null
+        // explícito violaria NOT NULL. No UPDATE o null fica: é como se limpa
+        // um valor (ex.: capacidade).
+        for (const k of Object.keys(registro)) if (registro[k] === null) delete registro[k]
         const { error } = await supabase.from(tabela).insert(registro)
         if (error) throw error
       }

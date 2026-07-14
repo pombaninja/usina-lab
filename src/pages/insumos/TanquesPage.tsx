@@ -42,9 +42,12 @@ export default function TanquesPage() {
           { nome: 'tem_horimetro', rotulo: 'Tem horímetro', tipo: 'checkbox' },
           { nome: 'ativa', rotulo: 'Ativa', tipo: 'checkbox' },
         ]} />
-      <p className="text-sm">
+      <p className="text-sm flex flex-wrap gap-x-6 gap-y-1">
         <Link to="/insumos/produtos" className="text-grp-600 hover:text-grp-700 font-medium">
           Cadastro de produtos (CAP, óleos, emulsão…) →
+        </Link>
+        <Link to="/insumos/baias" className="text-grp-600 hover:text-grp-700 font-medium">
+          Cadastro de baias de agregados →
         </Link>
       </p>
     </div>
