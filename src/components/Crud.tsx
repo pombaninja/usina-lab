@@ -5,7 +5,7 @@ import { sanitizarDecimal, parseDecimal, decimalParaTexto } from '../lib/formato
 
 export interface Campo {
   nome: string; rotulo: string
-  tipo: 'texto' | 'numero' | 'select' | 'checkbox'
+  tipo: 'texto' | 'numero' | 'select' | 'checkbox' | 'cor'
   opcoes?: { valor: string; rotulo: string }[]
   obrigatorio?: boolean
 }
@@ -14,10 +14,18 @@ export interface CrudProps {
   colunas: { nome: string; rotulo: string }[]
   campos: Campo[]
   ordem?: string
+  /** Coluna-chave usada no update (padrão 'id'; ex.: 'produto' em insumo_produtos). */
+  chave?: string
+  /** false = tabela de linhas fixas: sem criar, só editar (formulário aparece ao clicar Editar). */
+  permitirCriar?: boolean
 }
-type Registro = Record<string, unknown> & { id: string }
+type Registro = Record<string, unknown>
 
-export default function Crud({ tabela, titulo, colunas, campos, ordem = 'criado_em' }: CrudProps) {
+/** <input type="color"> exige '#rrggbb'; qualquer outra coisa vira preto. */
+const corValida = (v: unknown): string =>
+  typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v) ? v.toLowerCase() : '#000000'
+
+export default function Crud({ tabela, titulo, colunas, campos, ordem = 'criado_em', chave = 'id', permitirCriar = true }: CrudProps) {
   const qc = useQueryClient()
   const [editando, setEditando] = useState<Registro | null>(null)
   const [form, setForm] = useState<Record<string, unknown>>({})
@@ -51,7 +59,7 @@ export default function Crud({ tabela, titulo, colunas, campos, ordem = 'criado_
         registro[c.nome] = num
       }
       const { error } = editando
-        ? await supabase.from(tabela).update(registro).eq('id', editando.id)
+        ? await supabase.from(tabela).update(registro).eq(chave, editando[chave] as string)
         : await supabase.from(tabela).insert(registro)
       if (error) throw error
     },
@@ -68,6 +76,7 @@ export default function Crud({ tabela, titulo, colunas, campos, ordem = 'criado_
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-grp-700">{titulo}</h1>
+      {(permitirCriar || editando) && (
       <form onSubmit={e => { e.preventDefault(); salvar.mutate() }}
             className="bg-white p-4 rounded-xl shadow-sm grid grid-cols-3 gap-3 items-end">
         {campos.map(c => (
@@ -82,6 +91,12 @@ export default function Crud({ tabela, titulo, colunas, campos, ordem = 'criado_
             ) : c.tipo === 'checkbox' ? (
               <input type="checkbox" checked={!!form[c.nome]}
                      onChange={e => setForm({ ...form, [c.nome]: e.target.checked })} />
+            ) : c.tipo === 'cor' ? (
+              <span className="flex items-center gap-2">
+                <input type="color" className="h-9 w-14 border rounded cursor-pointer" value={corValida(form[c.nome])}
+                       onChange={e => setForm({ ...form, [c.nome]: corValida(e.target.value) })} />
+                <span className="text-slate-500 text-xs font-mono">{corValida(form[c.nome])}</span>
+              </span>
             ) : (
               // Numérico: texto com teclado decimal — aceita ',' e '.', padroniza em ','
               // e só converte para Number ao salvar (permite digitar "0,075").
@@ -97,18 +112,30 @@ export default function Crud({ tabela, titulo, colunas, campos, ordem = 'criado_
         </div>
         {erro && <p className="text-red-600 text-sm col-span-3">{erro}</p>}
       </form>
+      )}
       <table className="w-full bg-white rounded-xl shadow-sm text-sm">
         <thead><tr className="text-left border-b">
           {colunas.map(c => <th key={c.nome} className="p-3">{c.rotulo}</th>)}<th />
         </tr></thead>
         <tbody>
           {(linhas ?? []).map(l => (
-            <tr key={l.id} className="border-b hover:bg-slate-50">
-              {colunas.map(c => (
-                <td key={c.nome} className="p-3">
-                  {campos.find(x => x.nome === c.nome)?.tipo === 'numero' ? decimalParaTexto(l[c.nome]) : String(l[c.nome] ?? '')}
-                </td>
-              ))}
+            <tr key={String(l[chave])} className="border-b hover:bg-slate-50">
+              {colunas.map(c => {
+                const campo = campos.find(x => x.nome === c.nome)
+                return (
+                  <td key={c.nome} className="p-3">
+                    {campo?.tipo === 'numero' ? decimalParaTexto(l[c.nome])
+                      : campo?.tipo === 'cor' ? (
+                          <span className="inline-flex items-center gap-2">
+                            <span className="inline-block h-4 w-8 rounded border border-slate-300" style={{ backgroundColor: corValida(l[c.nome]) }} />
+                            <span className="font-mono text-xs text-slate-500">{corValida(l[c.nome])}</span>
+                          </span>
+                        )
+                      : campo?.tipo === 'select' ? (campo.opcoes?.find(o => o.valor === l[c.nome])?.rotulo ?? String(l[c.nome] ?? ''))
+                      : String(l[c.nome] ?? '')}
+                  </td>
+                )
+              })}
               <td className="p-3"><button className="text-blue-700" onClick={() => abrirEdicao(l)}>Editar</button></td>
             </tr>
           ))}
