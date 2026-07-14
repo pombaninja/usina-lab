@@ -305,6 +305,30 @@ function RiceDmtLaudo({ dados }: { dados: Record<string, unknown> }) {
   )
 }
 
+// Ensaio CBUQ COMPLETO (composto): dados = { marshall?, teor_betume?,
+// granulometria_mistura?, rtd?, rice_dmt? } — cada chave com o MESMO sub-shape do
+// ensaio individual. Renderiza TODAS as seções analíticas presentes, em sequência,
+// num único PDF; chaves ausentes são puladas (e cada seção já retorna null se as
+// entradas forem insuficientes).
+function CbuqCompletoLaudo({ dados }: { dados: Record<string, unknown> }) {
+  const secoes: [string, (props: { dados: Record<string, unknown> }) => React.ReactNode][] = [
+    ['marshall', MarshallLaudo],
+    ['teor_betume', TeorBetumeLaudo],
+    ['granulometria_mistura', GranulometriaMisturaLaudo],
+    ['rtd', RtdLaudo],
+    ['rice_dmt', RiceDmtLaudo],
+  ]
+  return (
+    <>
+      {secoes.map(([chave, Bloco]) => {
+        const sub = dados[chave] as Record<string, unknown> | undefined
+        if (!sub || !Object.keys(sub).length) return null
+        return <Bloco key={chave} dados={sub} />
+      })}
+    </>
+  )
+}
+
 // ===== AGREGADO =====
 
 function GranulometriaAgregadoLaudo({ dados }: { dados: Record<string, unknown> }) {
@@ -586,6 +610,7 @@ const SECOES_POR_TIPO: Record<string, (props: { dados: Record<string, unknown> }
   granulometria_mistura: GranulometriaMisturaLaudo,
   rtd: RtdLaudo,
   rice_dmt: RiceDmtLaudo,
+  cbuq_completo: CbuqCompletoLaudo,
   granulometria: GranulometriaAgregadoLaudo,
   lamelaridade: LamelaridadeLaudo,
   indice_forma: IndiceFormaLaudo,

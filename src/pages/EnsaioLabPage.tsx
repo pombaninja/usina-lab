@@ -15,6 +15,7 @@ import TeorBetumeLabForm from '../components/ensaiolab/TeorBetumeLabForm'
 import GranulometriaMisturaLabForm from '../components/ensaiolab/GranulometriaMisturaLabForm'
 import RtdLabForm from '../components/ensaiolab/RtdLabForm'
 import RiceDmtLabForm from '../components/ensaiolab/RiceDmtLabForm'
+import CbuqCompletoLabForm from '../components/ensaiolab/CbuqCompletoLabForm'
 
 interface EnsaioLab {
   id: string
@@ -43,6 +44,9 @@ const FORMULARIOS: Record<string, ComponentType<FormEnsaioLabProps> | undefined>
   granulometria_mistura: GranulometriaMisturaLabForm,
   rtd: RtdLabForm,
   rice_dmt: RiceDmtLabForm,
+  // Composto: um ensaio reúne TODOS os ensaios CBUQ; o form envia sempre o objeto
+  // `dados` COMPLETO (merge interno), pois a mutação `salvar` substitui o jsonb inteiro.
+  cbuq_completo: CbuqCompletoLabForm,
 }
 
 export default function EnsaioLabPage() {

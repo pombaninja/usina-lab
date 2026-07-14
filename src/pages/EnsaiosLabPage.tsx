@@ -118,8 +118,8 @@ export default function EnsaiosLabPage() {
               <select className={inp} value={novo.material_tipo}
                 onChange={e => {
                   const material_tipo = e.target.value
-                  // Tipo padrão por material: granulometria (agregado) ou marshall (cbuq/cbuqf).
-                  setNovo({ ...novo, material_tipo, tipo_ensaio: material_tipo === 'agregado' ? 'granulometria' : 'marshall' })
+                  // Tipo padrão por material: granulometria (agregado) ou o ensaio CBUQ completo (cbuq/cbuqf).
+                  setNovo({ ...novo, material_tipo, tipo_ensaio: material_tipo === 'agregado' ? 'granulometria' : 'cbuq_completo' })
                 }}>
                 {Object.entries(ROTULO_MATERIAL).map(([v, r]) => <option key={v} value={v}>{r}</option>)}
               </select></label>
