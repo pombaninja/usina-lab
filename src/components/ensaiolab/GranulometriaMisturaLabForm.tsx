@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { calcularGranulometria, type PeneiraLeitura } from '../../lib/calculos/granulometria'
+import { useEffect, useMemo, useState } from 'react'
+import { calcularGranulometria, normalizarPeneira, type PeneiraLeitura } from '../../lib/calculos/granulometria'
 import GraficoGranulometria from '../GraficoGranulometria'
 import { fmt, sanitizarDecimal, parseDecimal, decimalParaTexto } from '../../lib/formato'
 import type { FormEnsaioLabProps } from './tipos'
@@ -39,6 +39,27 @@ export default function GranulometriaMisturaLabForm({ dados, podeEditar, salvand
       ? d.leituras.map(l => ({ peneira: l.peneira, abertura: decimalParaTexto(l.abertura_mm), retido: decimalParaTexto(l.retido_acum) }))
       : peneirasPadrao.map(l => ({ ...l })))
   const [erroLocal, setErroLocal] = useState('')
+
+  // Com projeto vinculado, as LINHAS vêm das peneiras da especificação (grafia
+  // cadastrada), preservando leituras já digitadas quando a peneira casa via
+  // normalizarPeneira — mesmo realinhamento do ensaio CAUQ diário. Sem
+  // especificação, a lista atual (salva ou padrão) fica intocada.
+  useEffect(() => {
+    const peneirasEspec = especificacao?.peneiras ?? []
+    if (!peneirasEspec.length) return
+    setLeituras(prev => {
+      const preservadas = new Map(prev.map(l => [normalizarPeneira(l.peneira), l.retido]))
+      const rows = peneirasEspec.map(p => ({
+        peneira: p.peneira,
+        abertura: decimalParaTexto(p.aberturaMm),
+        retido: preservadas.get(normalizarPeneira(p.peneira)) || '',
+      }))
+      // Evita re-render desnecessário quando nada muda de fato
+      const igual = rows.length === prev.length && rows.every((r, i) =>
+        r.peneira === prev[i].peneira && r.abertura === prev[i].abertura && r.retido === prev[i].retido)
+      return igual ? prev : rows
+    })
+  }, [especificacao])
 
   function alterarLeitura(i: number, campo: keyof LeituraForm, valor: string) {
     setLeituras(leituras.map((l, idx) => (idx === i

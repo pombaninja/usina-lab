@@ -12,6 +12,8 @@ import { normalizarPeneira, type FaixaPeneira } from '../../lib/calculos/granulo
 export interface EspecificacaoMistura {
   faixas: FaixaPeneira[]
   curvaProjeto?: Record<string, number>
+  /** Peneiras da especificação (grafia cadastrada + abertura), para realinhar as linhas do ensaio. */
+  peneiras: { peneira: string; aberturaMm: number }[]
 }
 
 export interface DosagemVinculada {
@@ -41,19 +43,23 @@ export function useDosagemFaixas(dosagemId: string | undefined) {
       const tolerNorm = curvaTolerancias
         ? new Map(Object.entries(curvaTolerancias).map(([k, v]) => [normalizarPeneira(k), Number(v)]))
         : null
-      const faixas: FaixaPeneira[] = ((peneiras ?? []) as { peneira: string; passante_min: number; passante_max: number; tolerancia_trabalho: number }[])
-        .map(f => ({
-          peneira: f.peneira,
-          passanteMin: Number(f.passante_min),
-          passanteMax: Number(f.passante_max),
-          toleranciaTrabalho: tolerNorm?.get(normalizarPeneira(f.peneira)) ?? Number(f.tolerancia_trabalho),
-        }))
+      const linhasEspec = (peneiras ?? []) as { peneira: string; abertura_mm: number; passante_min: number; passante_max: number; tolerancia_trabalho: number }[]
+      const faixas: FaixaPeneira[] = linhasEspec.map(f => ({
+        peneira: f.peneira,
+        passanteMin: Number(f.passante_min),
+        passanteMax: Number(f.passante_max),
+        toleranciaTrabalho: tolerNorm?.get(normalizarPeneira(f.peneira)) ?? Number(f.tolerancia_trabalho),
+      }))
       return {
         id: dosagem.id as string,
         nome: dosagem.nome as string,
         revisao: (dosagem.revisao ?? null) as number | null,
         especificacao: faixas.length
-          ? { faixas, curvaProjeto: (dosagem.curva_projeto ?? undefined) as Record<string, number> | undefined }
+          ? {
+              faixas,
+              curvaProjeto: (dosagem.curva_projeto ?? undefined) as Record<string, number> | undefined,
+              peneiras: linhasEspec.map(f => ({ peneira: f.peneira, aberturaMm: Number(f.abertura_mm) })),
+            }
           : null,
       }
     },
