@@ -4,18 +4,21 @@ import { supabase } from '../../lib/supabase'
 import type { FormEnsaioLabProps } from './tipos'
 import { ROTULO_TIPO_ENSAIO, SECOES_CBUQ_COMPLETO } from './tipos'
 import { useDosagemFaixas } from './useDosagemFaixas'
-import MarshallLabForm from './MarshallLabForm'
 import TeorBetumeLabForm from './TeorBetumeLabForm'
 import GranulometriaMisturaLabForm from './GranulometriaMisturaLabForm'
-import RtdLabForm from './RtdLabForm'
+import ResistenciaCompressaoLabForm from './ResistenciaCompressaoLabForm'
 import RiceDmtLabForm from './RiceDmtLabForm'
 
-// Ensaio CBUQ COMPLETO (composto): um único ensaios_lab reúne TODOS os ensaios de
-// CBUQ — Marshall, teor de betume, granulometria da mistura, RTD e Rice/DMT — e o
-// laudo imprime tudo agregado num PDF só. dados jsonb = { dosagem_id?, marshall?,
-// teor_betume?, granulometria_mistura?, rtd?, rice_dmt? }, onde cada chave de seção
-// guarda EXATAMENTE o sub-shape que o formulário individual já persiste (nenhum
-// filho foi alterado). dosagem_id (opcional, nível do composto) vincula a dosagem/
+// Ensaio CBUQ COMPLETO (composto): um único ensaios_lab reúne os ensaios de CBUQ
+// na ordem definida pelo dono — teor de betume (método Rotarex|Soxhlet),
+// granulometria da mistura, resistência à compressão e Rice/DMT por último — e o
+// laudo imprime tudo agregado num PDF só. Marshall e RTD NÃO fazem parte do
+// composto (Marshall segue como ensaio avulso; RTD é ensaio SÓ do projeto).
+// dados jsonb = { dosagem_id?, teor_betume?, granulometria_mistura?,
+// resistencia_compressao?, rice_dmt? }, onde cada chave de seção guarda EXATAMENTE
+// o sub-shape que o formulário individual já persiste. Ensaios antigos podem trazer
+// chaves marshall/rtd: não são renderizadas, mas TODO save preserva (o merge abaixo
+// espalha ...dados). dosagem_id (opcional, nível do composto) vincula a dosagem/
 // projeto: a especificação do projeto dá as faixas de especificação e de trabalho
 // para a curva granulométrica da mistura — mesma semântica do ensaio CAUQ diário.
 //
@@ -32,10 +35,9 @@ import RiceDmtLabForm from './RiceDmtLabForm'
 // Não há outro escritor concorrente na mesma tela, então a união é sempre >= servidor.
 
 const FORMULARIOS_SECAO = {
-  marshall: MarshallLabForm,
   teor_betume: TeorBetumeLabForm,
   granulometria_mistura: GranulometriaMisturaLabForm,
-  rtd: RtdLabForm,
+  resistencia_compressao: ResistenciaCompressaoLabForm,
   rice_dmt: RiceDmtLabForm,
 } as const
 

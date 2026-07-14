@@ -6,11 +6,16 @@ export const TIPOS_AGREGADO = [
   'densidade_graudo', 'densidade_miudo',
 ] as const
 
-export const TIPOS_CBUQ = ['cbuq_completo', 'marshall', 'teor_betume', 'granulometria_mistura', 'rtd', 'rice_dmt'] as const
+// RTD saiu dos ensaios de laboratório (é ensaio SÓ do projeto/dosagem); Marshall
+// segue disponível como ensaio AVULSO, mas fora do composto cbuq_completo.
+export const TIPOS_CBUQ = ['cbuq_completo', 'marshall', 'teor_betume', 'granulometria_mistura', 'resistencia_compressao', 'rice_dmt'] as const
 
 /** Sub-chaves de ensaios_lab.dados no ensaio composto cbuq_completo — cada chave
- *  guarda EXATAMENTE o shape que o formulário individual correspondente persiste. */
-export const SECOES_CBUQ_COMPLETO = ['marshall', 'teor_betume', 'granulometria_mistura', 'rtd', 'rice_dmt'] as const
+ *  guarda EXATAMENTE o shape que o formulário individual correspondente persiste.
+ *  Ordem definida pelo dono: teor de betume (Rotarex|Soxhlet), granulometria da
+ *  mistura, resistência à compressão e Rice/DMT por último. Ensaios antigos podem
+ *  ter chaves marshall/rtd em dados: não são renderizadas, mas os saves preservam. */
+export const SECOES_CBUQ_COMPLETO = ['teor_betume', 'granulometria_mistura', 'resistencia_compressao', 'rice_dmt'] as const
 
 export const ROTULO_TIPO_ENSAIO: Record<string, string> = {
   granulometria: 'Granulometria — DNER-ME 083/98',
@@ -21,8 +26,11 @@ export const ROTULO_TIPO_ENSAIO: Record<string, string> = {
   densidade_miudo: 'Densidade do agregado miúdo — DNER-ME 084/95',
   cbuq_completo: 'Ensaio CBUQ completo (todos os ensaios)',
   marshall: 'Marshall (1 teor)',
-  teor_betume: 'Teor de betume (Rotarex / Rice)',
+  teor_betume: 'Teor de betume (Rotarex / Soxhlet)',
   granulometria_mistura: 'Granulometria da mistura',
+  resistencia_compressao: 'Resistência à compressão',
+  // rtd não é mais oferecido em ensaios novos (é ensaio do projeto), mas o rótulo
+  // fica para ensaios/laudos legados já gravados com tipo_ensaio = 'rtd'.
   rtd: 'Resistência à tração diametral (RTD)',
   rice_dmt: 'Rice / DMT',
 }

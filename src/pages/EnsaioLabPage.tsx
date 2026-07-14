@@ -14,6 +14,7 @@ import MarshallLabForm from '../components/ensaiolab/MarshallLabForm'
 import TeorBetumeLabForm from '../components/ensaiolab/TeorBetumeLabForm'
 import GranulometriaMisturaLabForm from '../components/ensaiolab/GranulometriaMisturaLabForm'
 import RtdLabForm from '../components/ensaiolab/RtdLabForm'
+import ResistenciaCompressaoLabForm from '../components/ensaiolab/ResistenciaCompressaoLabForm'
 import RiceDmtLabForm from '../components/ensaiolab/RiceDmtLabForm'
 import CbuqCompletoLabForm from '../components/ensaiolab/CbuqCompletoLabForm'
 
@@ -42,7 +43,10 @@ const FORMULARIOS: Record<string, ComponentType<FormEnsaioLabProps> | undefined>
   marshall: MarshallLabForm,
   teor_betume: TeorBetumeLabForm,
   granulometria_mistura: GranulometriaMisturaLabForm,
+  // rtd não é mais oferecido para ensaios NOVOS (saiu de TIPOS_CBUQ — é ensaio do
+  // projeto), mas o formulário fica registrado para abrir ensaios legados.
   rtd: RtdLabForm,
+  resistencia_compressao: ResistenciaCompressaoLabForm,
   rice_dmt: RiceDmtLabForm,
   // Composto: um ensaio reúne TODOS os ensaios CBUQ; o form envia sempre o objeto
   // `dados` COMPLETO (merge interno), pois a mutação `salvar` substitui o jsonb inteiro.

@@ -8,6 +8,7 @@ import { ROTULO_MATERIAL, ROTULO_TIPO_ENSAIO } from '../components/ensaiolab/tip
 import { calcularMarshall, fatorCorrecaoPorVolume } from '../lib/calculos/marshall'
 import { teorRotarex, gmmRice } from '../lib/calculos/teorBetume'
 import { calcularRtd } from '../lib/calculos/rtd'
+import { calcularResistenciaCompressao } from '../lib/calculos/resistenciaCompressao'
 import { calcularGranulometria, type LinhaGranulometria } from '../lib/calculos/granulometria'
 import { useDosagemFaixas, type EspecificacaoMistura } from '../components/ensaiolab/useDosagemFaixas'
 import { calcularGranulometriaAgregado, type PeneiraRef, type DeterminacaoAgregado } from '../lib/calculos/agregadoGranulometria'
@@ -168,9 +169,14 @@ function MarshallLaudo({ dados }: { dados: Record<string, unknown> }) {
 
 function TeorBetumeLaudo({ dados }: { dados: Record<string, unknown> }) {
   const d = dados as {
+    metodo?: string
     amostra_com_betume?: number | null; amostra_sem_betume?: number | null; umidade_pct?: number | null
+    // rice_* são chaves LEGADAS (Rice morava neste formulário antes de virar seção
+    // própria) — preservadas nos saves; se existirem, a tabela ainda sai no laudo.
     rice_peso_amostra?: number | null; rice_frasco_agua?: number | null; rice_frasco_amostra_agua?: number | null; rice_fator_temp?: number | null
   }
+  // dados legados sem `metodo` = Rotarex (era o único método gravimétrico).
+  const metodo = d.metodo === 'soxhlet' ? 'Soxhlet' : 'Rotarex'
   const rotarex = useMemo(() => {
     if (d.amostra_com_betume == null || d.amostra_sem_betume == null) return null
     try { return teorRotarex(d.amostra_com_betume, d.amostra_sem_betume, d.umidade_pct ?? 0) } catch { return null }
@@ -181,11 +187,11 @@ function TeorBetumeLaudo({ dados }: { dados: Record<string, unknown> }) {
   }, [d])
   if (d.amostra_com_betume == null && d.rice_peso_amostra == null) return null
   return (
-    <Secao titulo="Teor de betume — leituras e resultados">
+    <Secao titulo={`Teor de betume — método ${metodo}`}>
       <div className="grid grid-cols-2 gap-4">
         {d.amostra_com_betume != null && (
           <table className="w-full border-collapse text-[9px] leading-tight self-start">
-            <thead><tr className="bg-grp-100 text-center"><th className={`${thMini} text-left`} colSpan={2}>Rotarex</th></tr></thead>
+            <thead><tr className="bg-grp-100 text-center"><th className={`${thMini} text-left`} colSpan={2}>{metodo} (extração gravimétrica)</th></tr></thead>
             <tbody>
               <tr><td className={thMini}>Amostra com betume (g)</td><td className={tdMini}>{fmt(d.amostra_com_betume, 1)}</td></tr>
               <tr><td className={thMini}>Amostra sem betume (g)</td><td className={tdMini}>{d.amostra_sem_betume != null ? fmt(d.amostra_sem_betume, 1) : '—'}</td></tr>
@@ -305,6 +311,45 @@ function RtdLaudo({ dados }: { dados: Record<string, unknown> }) {
   )
 }
 
+function ResistenciaCompressaoLaudo({ dados }: { dados: Record<string, unknown> }) {
+  const d = dados as { constante_prensa?: number; cps?: { cp: number; leitura: number; diametro_cm: number }[] }
+  const calc = useMemo(() => {
+    if (d.constante_prensa == null || !d.cps?.length) return null
+    try {
+      const r = calcularResistenciaCompressao(d.cps.map(c => ({
+        leitura: c.leitura, constantePrensa: d.constante_prensa!, diametroCm: c.diametro_cm,
+      })))
+      return { linhas: d.cps.map((c, i) => ({ ...c, mpa: r.rcMpa[i] })), media: r.media }
+    } catch { return null }
+  }, [d])
+  if (!calc) return null
+  return (
+    <Secao titulo="Resistência à compressão">
+      <p className="text-[9px] text-slate-600 mb-1">RC = carga/(π·D²/4), carga = leitura × constante da prensa ({fmt(d.constante_prensa, 4)}), em MPa.</p>
+      <table className="w-full border-collapse text-[9px] leading-tight">
+        <thead><tr className="bg-grp-100 text-center">
+          <th className={thMini}>CP</th><th className={thMini}>Leitura</th>
+          <th className={thMini}>Diâmetro (cm)</th><th className={thMini}>RC (MPa)</th>
+        </tr></thead>
+        <tbody>
+          {calc.linhas.map(c => (
+            <tr key={c.cp} className="text-center">
+              <td className={`${tdMini} font-semibold`}>{c.cp}</td>
+              <td className={tdMini}>{fmt(c.leitura, 1)}</td>
+              <td className={tdMini}>{fmt(c.diametro_cm, 2)}</td>
+              <td className={`${tdMini} font-semibold`}>{fmt(c.mpa, 3)}</td>
+            </tr>
+          ))}
+          <tr className="text-center bg-slate-50 font-semibold">
+            <td className={tdMini} colSpan={3}>Média</td>
+            <td className={tdMini}>{fmt(calc.media, 3)} MPa</td>
+          </tr>
+        </tbody>
+      </table>
+    </Secao>
+  )
+}
+
 function RiceDmtLaudo({ dados }: { dados: Record<string, unknown> }) {
   const d = dados as { peso_amostra?: number; frasco_agua?: number; frasco_amostra_agua?: number; fator_temp?: number }
   const dmt = useMemo(() => {
@@ -327,18 +372,21 @@ function RiceDmtLaudo({ dados }: { dados: Record<string, unknown> }) {
   )
 }
 
-// Ensaio CBUQ COMPLETO (composto): dados = { dosagem_id?, marshall?, teor_betume?,
-// granulometria_mistura?, rtd?, rice_dmt? } — cada chave de seção com o MESMO
-// sub-shape do ensaio individual. Renderiza TODAS as seções analíticas presentes,
-// em sequência, num único PDF; chaves ausentes são puladas (e cada seção já retorna
-// null se as entradas forem insuficientes). `especificacao` (do projeto vinculado
-// por dados.dosagem_id) vai só para a granulometria da mistura (faixas + 5 curvas).
+// Ensaio CBUQ COMPLETO (composto): dados = { dosagem_id?, teor_betume?,
+// granulometria_mistura?, resistencia_compressao?, rice_dmt? } — cada chave de
+// seção com o MESMO sub-shape do ensaio individual, na ordem definida pelo dono
+// (teor de betume com o método, granulometria da mistura, resistência à compressão
+// e Rice/DMT por último). Chaves legadas marshall/rtd podem existir em ensaios
+// antigos: são preservadas no jsonb, mas NÃO saem mais no laudo do composto.
+// Renderiza as seções presentes, em sequência, num único PDF; chaves ausentes são
+// puladas (e cada seção já retorna null se as entradas forem insuficientes).
+// `especificacao` (do projeto vinculado por dados.dosagem_id) vai só para a
+// granulometria da mistura (faixas + 5 curvas).
 function CbuqCompletoLaudo({ dados, especificacao }: { dados: Record<string, unknown>; especificacao?: EspecificacaoMistura }) {
   const secoes: [string, (props: { dados: Record<string, unknown> }) => React.ReactNode][] = [
-    ['marshall', MarshallLaudo],
     ['teor_betume', TeorBetumeLaudo],
     ['granulometria_mistura', GranulometriaMisturaLaudo],
-    ['rtd', RtdLaudo],
+    ['resistencia_compressao', ResistenciaCompressaoLaudo],
     ['rice_dmt', RiceDmtLaudo],
   ]
   return (
@@ -634,7 +682,10 @@ const SECOES_POR_TIPO: Record<string, (props: { dados: Record<string, unknown> }
   marshall: MarshallLaudo,
   teor_betume: TeorBetumeLaudo,
   granulometria_mistura: GranulometriaMisturaLaudo,
+  // rtd avulsa não é mais oferecida para ensaios novos, mas laudos legados
+  // emitidos com tipo_ensaio = 'rtd' continuam imprimindo normalmente.
   rtd: RtdLaudo,
+  resistencia_compressao: ResistenciaCompressaoLaudo,
   rice_dmt: RiceDmtLaudo,
   cbuq_completo: CbuqCompletoLaudo,
   granulometria: GranulometriaAgregadoLaudo,
