@@ -1,15 +1,20 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Bar, BarChart, CartesianGrid, Line, LineChart, Tooltip, XAxis, YAxis } from 'recharts'
+import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, Tooltip, XAxis, YAxis } from 'recharts'
 import { supabase } from '../lib/supabase'
 import { useAuth, podeNoModulo } from '../lib/auth'
 import { fmt } from '../lib/formato'
 import { ROTULO_MATERIAL, ROTULO_TIPO_ENSAIO, TIPOS_AGREGADO, TIPOS_CBUQ } from '../components/ensaiolab/tipos'
 import FornecedorMaterialSelect, { type SelecaoFornecedorMaterial } from '../components/ensaiolab/FornecedorMaterialSelect'
+import { mediaDe } from '../components/ensaiolab/AnaliticoCbuq'
 import { teorRotarex, gmmRice } from '../lib/calculos/teorBetume'
 import { calcularResistenciaCompressao } from '../lib/calculos/resistenciaCompressao'
-import { contagemPorChave, contagemPorMes, rotuloDataCurta, situacaoLaudos, type SituacaoLaudo } from '../lib/relatorios'
+import { equivalenteAreia } from '../lib/calculos/equivalenteAreia'
+import { calcularLamelaridade, PENEIRAS_LAMELARIDADE, FRACOES_LAMELARIDADE } from '../lib/calculos/lamelaridade'
+import { indiceLamelaridade } from '../lib/calculos/indiceForma'
+import { densidadeAgregadoGraudo, densidadeAgregadoMiudo } from '../lib/calculos/densidades'
+import { contagemPorChave, contagemPorMes, mesclarSeriesPorData, rotuloDataCurta, situacaoLaudos, type PontoData, type SituacaoLaudo } from '../lib/relatorios'
 
 interface EnsaioLabLinha {
   id: string
@@ -83,13 +88,93 @@ function dmtDe(e: EnsaioLabLinha): number | null {
   } catch { return null }
 }
 
-/** Série {rotulo dd/mm/aa, valor} em ordem cronológica, pulando ensaios sem resultado. */
-function serieResultados(ensaios: EnsaioLabLinha[], extrair: (e: EnsaioLabLinha) => number | null) {
+// ===== Extração de resultados AGREGADO para o relatório (B3) =====
+// Mesma regra dos extratores CBUQ: SEMPRE via libs golden-testadas de
+// src/lib/calculos, try/catch por ensaio (dados incompletos → ensaio pulado).
+// O tipo agregado_unificado guarda só REFERÊNCIAS (dados.ensaios) — sem
+// resultado próprio, cai nos `null` naturalmente.
+
+function eaDe(e: EnsaioLabLinha): number | null {
+  if (e.tipo_ensaio !== 'equivalente_areia') return null
+  const d = e.dados as { determinacoes?: { leitura_areia: number; leitura_argila: number }[] }
+  if (!d.determinacoes?.length) return null
+  try {
+    const v = equivalenteAreia(d.determinacoes.map(det => ({ leituraAreia: det.leitura_areia, leituraArgila: det.leitura_argila })))
+    return Number.isFinite(v) ? v : null
+  } catch { return null }
+}
+
+function ilLamelaridadeDe(e: EnsaioLabLinha): number | null {
+  if (e.tipo_ensaio !== 'lamelaridade') return null
+  const d = e.dados as {
+    pesoTotal?: number
+    granulometria?: Record<string, number>
+    fracoes?: { passando: string; retido: string; pesoFracao: number | null; pesoLamelar: number | null }[]
+  }
+  if (d.pesoTotal == null || d.pesoTotal <= 0) return null
+  try {
+    const porFaixa = new Map((d.fracoes ?? []).map(f => [`${f.passando}|${f.retido}`, f]))
+    const r = calcularLamelaridade(
+      d.pesoTotal,
+      PENEIRAS_LAMELARIDADE.map(p => d.granulometria?.[p] ?? null),
+      FRACOES_LAMELARIDADE.map(f => {
+        const s = porFaixa.get(`${f.passando}|${f.retido}`)
+        return { pesoFracao: s?.pesoFracao ?? null, pesoLamelar: s?.pesoLamelar ?? null }
+      }),
+    )
+    return r.ilFinal != null && Number.isFinite(r.ilFinal) ? r.ilFinal : null
+  } catch { return null }
+}
+
+function densidadeGraudoDe(e: EnsaioLabLinha): number | null {
+  if (e.tipo_ensaio !== 'densidade_graudo') return null
+  const d = e.dados as { determinacoes?: { pesoArSeco: number; pesoSaturado: number; pesoImerso: number }[] }
+  if (!d.determinacoes?.length) return null
+  try {
+    const m = mediaDe(d.determinacoes.map(det => {
+      try { return densidadeAgregadoGraudo(det.pesoArSeco, det.pesoSaturado, det.pesoImerso).real } catch { return null }
+    }))
+    return m != null && Number.isFinite(m) ? m : null
+  } catch { return null }
+}
+
+function densidadeMiudoDe(e: EnsaioLabLinha): number | null {
+  if (e.tipo_ensaio !== 'densidade_miudo') return null
+  const d = e.dados as {
+    determinacoes?: { pesoPicnometro: number; pesoPicAgregado: number; pesoPicAgua: number; pesoPicAgregadoAgua: number; fatorCorrecaoTemp?: number }[]
+  }
+  if (!d.determinacoes?.length) return null
+  try {
+    const m = mediaDe(d.determinacoes.map(det => {
+      try {
+        return densidadeAgregadoMiudo(det.pesoPicnometro, det.pesoPicAgregado, det.pesoPicAgua, det.pesoPicAgregadoAgua, det.fatorCorrecaoTemp ?? 1)
+      } catch { return null }
+    }))
+    return m != null && Number.isFinite(m) ? m : null
+  } catch { return null }
+}
+
+function ilFormaDe(e: EnsaioLabLinha): number | null {
+  if (e.tipo_ensaio !== 'indice_forma') return null
+  const d = e.dados as { graos?: { espessura: number; comprimento: number }[] }
+  if (!d.graos?.length) return null
+  try {
+    const r = indiceLamelaridade(d.graos)
+    return Number.isFinite(r.mediaIL) ? r.mediaIL : null
+  } catch { return null }
+}
+
+/** Série {data, valor} em ordem cronológica, pulando ensaios sem resultado. */
+function serieDatada(ensaios: EnsaioLabLinha[], extrair: (e: EnsaioLabLinha) => number | null): PontoData[] {
   return ensaios
     .map(e => ({ data: e.data, valor: extrair(e) }))
-    .filter((p): p is { data: string; valor: number } => p.valor != null)
+    .filter((p): p is PontoData => p.valor != null)
     .sort((a, b) => a.data.localeCompare(b.data))
-    .map(p => ({ rotulo: rotuloDataCurta(p.data), valor: p.valor }))
+}
+
+/** Série {rotulo dd/mm/aa, valor} em ordem cronológica, pulando ensaios sem resultado. */
+function serieResultados(ensaios: EnsaioLabLinha[], extrair: (e: EnsaioLabLinha) => number | null) {
+  return serieDatada(ensaios, extrair).map(p => ({ rotulo: rotuloDataCurta(p.data), valor: p.valor }))
 }
 
 function CartaoGrafico({ titulo, vazio, children }: { titulo: string; vazio: boolean; children: React.ReactNode }) {
@@ -215,11 +300,19 @@ export default function EnsaiosLabPage() {
     const teor = serieResultados(filtrados, teorBetumeDe)
     const rc = serieResultados(filtrados, rcMediaDe)
     const dmt = serieResultados(filtrados, dmtDe)
+    // Séries AGREGADO (B3) — cada gráfico só aparece com ≥1 ponto no filtro.
+    const ea = serieResultados(filtrados, eaDe)
+    const lamelaridade = serieResultados(filtrados, ilLamelaridadeDe)
+    const densidadeReal = mesclarSeriesPorData({
+      graudo: serieDatada(filtrados, densidadeGraudoDe),
+      miudo: serieDatada(filtrados, densidadeMiudoDe),
+    })
+    const forma = serieResultados(filtrados, ilFormaDe)
     const comLaudoEmitido = filtrados.filter(e => situacaoPorEnsaio.get(e.id) === 'emitido').length
     const materiais = new Set(filtrados
       .map(e => e.material_nome?.trim().toLowerCase())
       .filter((x): x is string => !!x))
-    return { porMes, porTipo, teor, rc, dmt, comLaudoEmitido, materiaisDistintos: materiais.size }
+    return { porMes, porTipo, teor, rc, dmt, ea, lamelaridade, densidadeReal, forma, comLaudoEmitido, materiaisDistintos: materiais.size }
   }, [filtrados, situacaoPorEnsaio])
 
   const criar = useMutation({
@@ -494,6 +587,65 @@ export default function EnsaiosLabPage() {
               </CartaoGrafico>
             </div>
           </div>
+
+          {/* ===== Resultados AGREGADO (B3) — cada gráfico só com ≥1 ponto ===== */}
+          {(relatorio.ea.length > 0 || relatorio.lamelaridade.length > 0
+            || relatorio.densidadeReal.length > 0 || relatorio.forma.length > 0) && (
+            <div>
+              <h3 className="text-sm font-semibold text-grp-700 mb-2">Resultados AGREGADO ao longo do tempo</h3>
+              <p className="text-xs text-slate-500 mb-2">
+                Recalculados das entradas brutas com as mesmas bibliotecas dos formulários — ensaios com dados incompletos são pulados.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {relatorio.ea.length > 0 && (
+                  <CartaoGrafico titulo="Equivalente de areia (%) por data" vazio={false}>
+                    <LineChart width={460} height={240} data={relatorio.ea}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="rotulo" tick={{ fontSize: 11 }} />
+                      <YAxis domain={['auto', 'auto']} tickFormatter={(v: number) => fmt(v, 0)} />
+                      <Tooltip formatter={(v: unknown) => `${fmt(Number(v), 2)}%`} />
+                      <Line dataKey="valor" name="Equivalente de areia" stroke="#3b6fb5" strokeWidth={2} dot />
+                    </LineChart>
+                  </CartaoGrafico>
+                )}
+                {relatorio.lamelaridade.length > 0 && (
+                  <CartaoGrafico titulo="Índice de lamelaridade final (%) por data" vazio={false}>
+                    <LineChart width={460} height={240} data={relatorio.lamelaridade}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="rotulo" tick={{ fontSize: 11 }} />
+                      <YAxis domain={['auto', 'auto']} tickFormatter={(v: number) => fmt(v, 1)} />
+                      <Tooltip formatter={(v: unknown) => `${fmt(Number(v), 2)}%`} />
+                      <Line dataKey="valor" name="IL final (frações)" stroke="#2f5a94" strokeWidth={2} dot />
+                    </LineChart>
+                  </CartaoGrafico>
+                )}
+                {relatorio.densidadeReal.length > 0 && (
+                  <CartaoGrafico titulo="Densidade real do agregado por data" vazio={false}>
+                    <LineChart width={460} height={240} data={relatorio.densidadeReal}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="rotulo" tick={{ fontSize: 11 }} />
+                      <YAxis domain={['auto', 'auto']} tickFormatter={(v: number) => fmt(v, 2)} />
+                      <Tooltip formatter={(v: unknown) => fmt(Number(v), 3)} />
+                      <Legend />
+                      <Line dataKey="graudo" name="Graúdo (real)" stroke="#3b6fb5" strokeWidth={2} dot connectNulls />
+                      <Line dataKey="miudo" name="Miúdo (real)" stroke="#4c80c4" strokeWidth={2} dot connectNulls />
+                    </LineChart>
+                  </CartaoGrafico>
+                )}
+                {relatorio.forma.length > 0 && (
+                  <CartaoGrafico titulo="Índice de forma — média IL (C/E) por data" vazio={false}>
+                    <LineChart width={460} height={240} data={relatorio.forma}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="rotulo" tick={{ fontSize: 11 }} />
+                      <YAxis domain={['auto', 'auto']} tickFormatter={(v: number) => fmt(v, 1)} />
+                      <Tooltip formatter={(v: unknown) => fmt(Number(v), 3)} />
+                      <Line dataKey="valor" name="Média IL (C/E)" stroke="#264a7a" strokeWidth={2} dot />
+                    </LineChart>
+                  </CartaoGrafico>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </details>
 

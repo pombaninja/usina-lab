@@ -75,6 +75,35 @@ export function contagemPorChave(valores: (string | null | undefined)[]): Contag
     .map(([chave, total]) => ({ chave, total }))
 }
 
+export interface PontoData { data: string; valor: number }
+
+/** Mescla séries {data, valor} nomeadas numa lista única de pontos para gráfico
+ *  de MÚLTIPLAS linhas: ordena por data (AAAA-MM-DD), gera uma coluna por série
+ *  e o rótulo dd/mm/aa. Pontos repetidos na MESMA data e série não são
+ *  colapsados: a data vira N linhas (linha i = i-ésimo ponto de cada série) —
+ *  nenhum ensaio some do gráfico. Séries sem ponto na data ficam sem a coluna
+ *  (Line com connectNulls atravessa). */
+export function mesclarSeriesPorData(
+  series: Record<string, PontoData[]>,
+): ({ data: string; rotulo: string } & Partial<Record<string, number | string>>)[] {
+  const datas = [...new Set(Object.values(series).flat().map(p => p.data))].sort()
+  const linhas: ({ data: string; rotulo: string } & Partial<Record<string, number | string>>)[] = []
+  for (const data of datas) {
+    const porChave = Object.entries(series).map(([chave, pontos]) =>
+      [chave, pontos.filter(p => p.data === data)] as const)
+    const repeticoes = Math.max(...porChave.map(([, pontos]) => pontos.length))
+    for (let i = 0; i < repeticoes; i++) {
+      const linha: { data: string; rotulo: string } & Partial<Record<string, number | string>> =
+        { data, rotulo: rotuloDataCurta(data) }
+      for (const [chave, pontos] of porChave) {
+        if (pontos[i]) linha[chave] = pontos[i].valor
+      }
+      linhas.push(linha)
+    }
+  }
+  return linhas
+}
+
 export type SituacaoLaudo = 'emitido' | 'aprovado' | 'rascunho'
 const PRIORIDADE_SITUACAO: SituacaoLaudo[] = ['emitido', 'aprovado', 'rascunho']
 

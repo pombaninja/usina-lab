@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   contagemPorChave, contagemPorMes, contagemPorMesECategoria,
-  dataLocalDoTimestamp, mediaDiasEntre, mesDaData, rotuloDataCurta, rotuloMes, situacaoLaudos,
+  dataLocalDoTimestamp, mediaDiasEntre, mesDaData, mesclarSeriesPorData,
+  rotuloDataCurta, rotuloMes, situacaoLaudos,
 } from './relatorios'
 
 describe('relatorios — datas e rótulos', () => {
@@ -79,6 +80,43 @@ describe('relatorios — contagens', () => {
       { chave: 'X', total: 1 },
       { chave: 'Y', total: 1 },
     ])
+  })
+})
+
+describe('relatorios — mesclarSeriesPorData (gráfico de múltiplas linhas)', () => {
+  it('mescla séries por data em ordem cronológica com uma coluna por série', () => {
+    expect(mesclarSeriesPorData({
+      graudo: [{ data: '2026-07-10', valor: 2.9 }, { data: '2026-07-01', valor: 2.8 }],
+      miudo: [{ data: '2026-07-05', valor: 2.6 }],
+    })).toEqual([
+      { data: '2026-07-01', rotulo: '01/07/26', graudo: 2.8 },
+      { data: '2026-07-05', rotulo: '05/07/26', miudo: 2.6 },
+      { data: '2026-07-10', rotulo: '10/07/26', graudo: 2.9 },
+    ])
+  })
+
+  it('data compartilhada entre séries vira UMA linha com as duas colunas', () => {
+    expect(mesclarSeriesPorData({
+      graudo: [{ data: '2026-07-01', valor: 2.8 }],
+      miudo: [{ data: '2026-07-01', valor: 2.6 }],
+    })).toEqual([
+      { data: '2026-07-01', rotulo: '01/07/26', graudo: 2.8, miudo: 2.6 },
+    ])
+  })
+
+  it('pontos repetidos na mesma data e série NÃO são colapsados (viram N linhas)', () => {
+    expect(mesclarSeriesPorData({
+      graudo: [{ data: '2026-07-01', valor: 2.8 }, { data: '2026-07-01', valor: 2.9 }],
+      miudo: [{ data: '2026-07-01', valor: 2.6 }],
+    })).toEqual([
+      { data: '2026-07-01', rotulo: '01/07/26', graudo: 2.8, miudo: 2.6 },
+      { data: '2026-07-01', rotulo: '01/07/26', graudo: 2.9 },
+    ])
+  })
+
+  it('séries vazias devolvem lista vazia', () => {
+    expect(mesclarSeriesPorData({ graudo: [], miudo: [] })).toEqual([])
+    expect(mesclarSeriesPorData({})).toEqual([])
   })
 })
 
