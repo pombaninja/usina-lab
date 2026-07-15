@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { fmt } from '../lib/formato'
 import GraficoGranulometria from '../components/GraficoGranulometria'
-import { ROTULO_MATERIAL, ROTULO_TIPO_ENSAIO } from '../components/ensaiolab/tipos'
+import { ROTULO_MATERIAL, ROTULO_TIPO_ENSAIO, rotuloCurtoTipo } from '../components/ensaiolab/tipos'
 import { calcularMarshall, fatorCorrecaoPorVolume } from '../lib/calculos/marshall'
 import { calcularRtd } from '../lib/calculos/rtd'
 import type { LinhaGranulometria } from '../lib/calculos/granulometria'
@@ -13,7 +13,8 @@ import {
   mediaDe, th, td, thMini, tdMini, Secao,
   TeorBetumeLaudo, GranulometriaMisturaLaudo, ResistenciaCompressaoLaudo, RiceDmtLaudo, CbuqCompletoLaudo,
 } from '../components/ensaiolab/AnaliticoCbuq'
-import { calcularGranulometriaAgregado, type PeneiraRef, type DeterminacaoAgregado } from '../lib/calculos/agregadoGranulometria'
+import { calcularGranulometriaAgregado, aplicarFaixaEspecificacao, retidoLancado, type PeneiraRef, type DeterminacaoAgregado, type LinhaAgregadoFaixa } from '../lib/calculos/agregadoGranulometria'
+import { useEspecificacaoFaixa } from '../components/ensaiolab/useEspecificacaoFaixa'
 import { calcularLamelaridade, PENEIRAS_LAMELARIDADE, FRACOES_LAMELARIDADE } from '../lib/calculos/lamelaridade'
 import { indiceLamelaridade } from '../lib/calculos/indiceForma'
 import { equivalenteAreia } from '../lib/calculos/equivalenteAreia'
@@ -201,42 +202,73 @@ function GranulometriaAgregadoLaudo({ dados }: { dados: Record<string, unknown> 
   const d = dados as {
     peneiras?: { peneira: string; aberturaMm: number }[]
     determinacoes?: { pesoTotal: number; retidos: Record<string, number> }[]
+    especificacao_id?: string
   }
+  // Especificação vinculada (A2, dados.especificacao_id — opcional): nome + faixa
+  // passante mín/máx por peneira. SEM faixa de trabalho: ensaio avulso não tem
+  // curva de projeto — a banda impressa é a própria especificação.
+  const { data: espec } = useEspecificacaoFaixa(typeof d.especificacao_id === 'string' ? d.especificacao_id : undefined)
+  const comFaixa = !!espec?.peneiras.length
   const calc = useMemo(() => {
     if (!d.peneiras?.length || !d.determinacoes?.length) return null
     try {
       const peneiras: PeneiraRef[] = d.peneiras.map(p => ({ peneira: p.peneira, aberturaMm: p.aberturaMm }))
       const dets: DeterminacaoAgregado[] = d.determinacoes.map(det => ({ pesoTotal: det.pesoTotal, retidos: det.retidos ?? {} }))
-      const linhas = calcularGranulometriaAgregado(peneiras, dets)
+      const base = calcularGranulometriaAgregado(peneiras, dets)
+      const faixa = espec?.peneiras.length ? aplicarFaixaEspecificacao(base, espec.peneiras) : null
+      const linhas: LinhaAgregadoFaixa[] = faixa?.linhas ?? base
       const linhasGrafico: LinhaGranulometria[] = linhas.map(l => ({
         peneira: l.peneira, aberturaMm: l.aberturaMm, retidoAcum: l.retidoMedio,
         pctRetidaAcum: l.pctRetida, pctPassando: l.pctPassa,
+        espMin: l.espMin, espMax: l.espMax,
       }))
-      return { linhas, linhasGrafico, dets }
+      return { linhas, linhasGrafico, dets, conforme: faixa?.conforme ?? false, julgadas: faixa?.julgadas ?? 0 }
     } catch { return null }
-  }, [d])
+  }, [d, espec])
   if (!calc) return null
   return (
     <Secao titulo="Análise Granulométrica — DNER-ME 083/98">
       <p className="text-[9px] text-slate-600 mb-1">
         {calc.dets.map((det, i) => <span key={i}>Det. {i + 1} — peso total: <b>{fmt(det.pesoTotal, 1)} g</b>{i < calc.dets.length - 1 ? ' · ' : ''}</span>)}
+        {comFaixa && espec && <>
+          {' '}· Especificação: <b>{espec.nome}{espec.norma ? ` (${espec.norma})` : ''}</b>
+          {calc.julgadas > 0 && <> · Situação geral: <b className={calc.conforme ? 'text-green-700' : 'text-red-600'}>{calc.conforme ? 'CONFORME' : 'FORA DA FAIXA'}</b></>}
+        </>}
       </p>
       <table className="w-full border mb-3">
         <thead><tr className="bg-grp-100">
           <th className={th}>Peneira</th><th className={th}>mm</th>
+          {calc.dets.map((_, i) => <th key={i} className={th}>Det. {i + 1} — retido acum. (g)</th>)}
           <th className={th}>Retido acum. médio (g)</th><th className={th}>% retida acum.</th><th className={th}>% Passando</th>
+          {comFaixa && <><th className={th}>Esp. mín</th><th className={th}>Esp. máx</th><th className={th}>Situação</th></>}
         </tr></thead>
         <tbody>{calc.linhas.map(l => (
           <tr key={l.peneira}>
             <td className={td}>{l.peneira}</td>
             <td className={td}>{l.aberturaMm}</td>
+            {calc.dets.map((det, i) => {
+              const retido = retidoLancado(det, l.peneira)
+              return <td key={i} className={td}>{retido != null ? fmt(retido, 1) : '—'}</td>
+            })}
             <td className={td}>{fmt(l.retidoMedio, 1)}</td>
             <td className={td}>{fmt(l.pctRetida, 1)}</td>
             <td className={`${td} font-semibold`}>{fmt(l.pctPassa, 1)}</td>
+            {comFaixa && <>
+              <td className={td}>{l.espMin !== undefined ? fmt(l.espMin, 1) : '—'}</td>
+              <td className={td}>{l.espMax !== undefined ? fmt(l.espMax, 1) : '—'}</td>
+              <td className={td}>
+                {l.conforme === true && <span className="text-green-700 font-semibold">Conforme</span>}
+                {l.conforme === false && <span className="text-red-600 font-semibold">Fora</span>}
+                {l.conforme === undefined && '—'}
+              </td>
+            </>}
           </tr>
         ))}</tbody>
       </table>
       <GraficoGranulometria linhas={calc.linhasGrafico} largura={680} />
+      {comFaixa && espec && (
+        <p className="text-[9px] text-slate-600 text-center">Faixa da especificação: {espec.nome}{espec.norma ? ` (${espec.norma})` : ''}</p>
+      )}
     </Secao>
   )
 }
@@ -531,6 +563,20 @@ export default function LaudoLabImprimirPage() {
     : undefined
   const { data: vinculada } = useDosagemFaixas(dosagemId)
 
+  // Ensaios VINCULADOS (A3, dados.vinculos = { tipo: uuid }): linha compacta no
+  // cabeçalho com "Nº X (data) — tipo". Hook sempre chamado; roda só com ids.
+  const idsVinculados = Object.values((ensaioLab?.dados?.vinculos ?? {}) as Record<string, string>)
+  const { data: ensaiosVinculados } = useQuery({
+    queryKey: ['laudo-lab-vinculados', idsVinculados],
+    enabled: idsVinculados.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase.from('ensaios_lab')
+        .select('id, numero, data, tipo_ensaio').in('id', idsVinculados).order('numero')
+      if (error) throw error
+      return (data ?? []) as { id: string; numero: number; data: string; tipo_ensaio: string }[]
+    },
+  })
+
   if (!laudo) return <p>Carregando…</p>
   const e = laudo.ensaios_lab
   if (!e) return <p className="text-red-600">Este laudo não é de um ensaio de laboratório avulso.</p>
@@ -566,6 +612,13 @@ export default function LaudoLabImprimirPage() {
         {e.local_extracao && <p><b>Local de extração:</b> {e.local_extracao}</p>}
         {e.temperatura_cap != null && <p><b>Temperatura do CAP:</b> {fmt(e.temperatura_cap, 1)} °C</p>}
         {vinculada && <p className="col-span-2"><b>Projeto vinculado:</b> {vinculada.nome} — Rev. {vinculada.revisao ?? 0}</p>}
+        {!!ensaiosVinculados?.length && (
+          <p className="col-span-2"><b>Ensaios vinculados:</b>{' '}
+            {ensaiosVinculados.map(v =>
+              `Nº ${v.numero} (${new Date(v.data + 'T12:00').toLocaleDateString('pt-BR')}) — ${rotuloCurtoTipo(v.tipo_ensaio)}`,
+            ).join(' · ')}
+          </p>
+        )}
         {e.observacoes && <p className="col-span-2"><b>Observações:</b> {e.observacoes}</p>}
       </section>
 

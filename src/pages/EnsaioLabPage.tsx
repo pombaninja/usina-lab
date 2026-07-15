@@ -5,6 +5,8 @@ import { supabase } from '../lib/supabase'
 import { useAuth, podeNoModulo } from '../lib/auth'
 import { sanitizarDecimal, parseDecimal } from '../lib/formato'
 import { ROTULO_MATERIAL, ROTULO_TIPO_ENSAIO, type FormEnsaioLabProps } from '../components/ensaiolab/tipos'
+import FornecedorMaterialSelect from '../components/ensaiolab/FornecedorMaterialSelect'
+import VinculosEnsaiosCard, { TIPOS_VINCULAVEIS } from '../components/ensaiolab/VinculosEnsaiosCard'
 import GranulometriaLabForm from '../components/ensaiolab/GranulometriaLabForm'
 import LamelaridadeLabForm from '../components/ensaiolab/LamelaridadeLabForm'
 import IndiceFormaLabForm from '../components/ensaiolab/IndiceFormaLabForm'
@@ -21,11 +23,14 @@ import CbuqCompletoLabForm from '../components/ensaiolab/CbuqCompletoLabForm'
 
 interface EnsaioLab {
   id: string
+  numero: number
   empresa_id: string
   data: string
   material_tipo: string
   material_nome: string | null
   origem: string | null
+  fornecedor_id: string | null
+  material_lab_id: string | null
   tipo_ensaio: string
   dados: Record<string, unknown>
   periodo: string | null
@@ -71,7 +76,10 @@ export default function EnsaioLabPage() {
   const podeAprovar = podeNoModulo(perfis, 'ensaios_usina', 'avaliador')
 
   const [cabecalho, setCabecalho] = useState({
-    data: '', material_nome: '', origem: '',
+    // material_nome/origem seguem no estado como TEXTO sincronizado: os selects
+    // de Fornecedor/Material (A1) escrevem os NOMES aqui ao selecionar; linhas
+    // legadas sem FK preservam o texto antigo até alguém trocar a seleção.
+    data: '', material_nome: '', origem: '', fornecedor_id: '', material_lab_id: '',
     // Cabeçalho completo do CBUQ (espelho do Ensaio CAUQ diário) — só aparece
     // quando material_tipo é cbuq/cbuqf; agregado mantém o cabeçalho simples.
     periodo: '', cliente_obra_id: '', placa_caminhao: '', local_extracao: '',
@@ -117,6 +125,7 @@ export default function EnsaioLabPage() {
     if (!ensaio || carregado) return
     setCabecalho({
       data: ensaio.data, material_nome: ensaio.material_nome ?? '', origem: ensaio.origem ?? '',
+      fornecedor_id: ensaio.fornecedor_id ?? '', material_lab_id: ensaio.material_lab_id ?? '',
       periodo: ensaio.periodo ?? '',
       cliente_obra_id: ensaio.cliente_obra_id ?? '',
       placa_caminhao: ensaio.placa_caminhao ?? '',
@@ -134,10 +143,16 @@ export default function EnsaioLabPage() {
       if (!cabecalho.data) throw new Error('Informe a data do ensaio.')
       const temperatura = parseDecimal(cabecalho.temperatura_cap)
       if (temperatura != null && Number.isNaN(temperatura)) throw new Error('Temperatura do CAP inválida.')
+      // dados.vinculos (A3) é metadado da PÁGINA, não do formulário: o form monta
+      // o payload só com os campos dele — preserva os vínculos existentes aqui.
+      const vinculos = (ensaio?.dados as Record<string, unknown> | undefined)?.vinculos
+      if (vinculos !== undefined) dados = { ...dados, vinculos }
       const { error } = await supabase.from('ensaios_lab').update({
         data: cabecalho.data,
         material_nome: cabecalho.material_nome.trim() || null,
         origem: cabecalho.origem.trim() || null,
+        fornecedor_id: cabecalho.fornecedor_id || null,
+        material_lab_id: cabecalho.material_lab_id || null,
         // Cabeçalho completo (CBUQ/CBUQF); nos ensaios de agregado os campos
         // ficam ocultos e o estado preserva o que veio do banco (via prefill).
         periodo: cabecalho.periodo || null,
@@ -213,7 +228,7 @@ export default function EnsaioLabPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-grp-700">
-          {ROTULO_TIPO_ENSAIO[ensaio.tipo_ensaio] ?? ensaio.tipo_ensaio} — {ROTULO_MATERIAL[ensaio.material_tipo] ?? ensaio.material_tipo}
+          Ensaio nº {ensaio.numero} · {ROTULO_TIPO_ENSAIO[ensaio.tipo_ensaio] ?? ensaio.tipo_ensaio} — {ROTULO_MATERIAL[ensaio.material_tipo] ?? ensaio.material_tipo}
         </h1>
         <button className="text-sm text-blue-700 underline" onClick={() => nav('/ensaios-lab')}>Voltar aos ensaios</button>
       </div>
@@ -229,12 +244,20 @@ export default function EnsaioLabPage() {
         <label className="text-sm">Data
           <input className={inp} type="date" value={cabecalho.data} disabled={!editavel}
             onChange={e => setCabecalho({ ...cabecalho, data: e.target.value })} /></label>
-        <label className="text-sm">Nome do material
-          <input className={inp} value={cabecalho.material_nome} disabled={!editavel}
-            onChange={e => setCabecalho({ ...cabecalho, material_nome: e.target.value })} /></label>
-        <label className="text-sm sm:col-span-2">Origem / amostra
-          <input className={inp} value={cabecalho.origem} disabled={!editavel}
-            onChange={e => setCabecalho({ ...cabecalho, origem: e.target.value })} /></label>
+        <FornecedorMaterialSelect disabled={!editavel}
+          valor={{ fornecedorId: cabecalho.fornecedor_id, materialLabId: cabecalho.material_lab_id }}
+          onChange={v => setCabecalho(c => ({
+            ...c,
+            fornecedor_id: v.fornecedorId, material_lab_id: v.materialLabId,
+            // Sincroniza os TEXTOS com a seleção; trocar a seleção substitui o
+            // texto legado (a linha "cadastro anterior" some junto).
+            origem: v.fornecedorNome ?? '', material_nome: v.materialNome ?? '',
+          }))} />
+        {!cabecalho.fornecedor_id && (cabecalho.material_nome || cabecalho.origem) && (
+          <p className="text-xs text-slate-500 self-end pb-2">
+            Cadastro anterior (texto livre): <b>{cabecalho.material_nome || '—'}</b> · {cabecalho.origem || '—'}
+          </p>
+        )}
         {materialCbuq && (<>
           <label className="text-sm">Período
             <select className={inp} value={cabecalho.periodo} disabled={!editavel}
@@ -265,6 +288,10 @@ export default function EnsaioLabPage() {
               onChange={e => setCabecalho({ ...cabecalho, observacoes: e.target.value })} /></label>
         </>)}
       </section>
+
+      {TIPOS_VINCULAVEIS[ensaio.tipo_ensaio] && ensaio.material_tipo === 'agregado' && (
+        <VinculosEnsaiosCard ensaio={ensaio} editavel={editavel} />
+      )}
 
       {Formulario && carregado ? (
         <Formulario dados={ensaio.dados ?? {}} podeEditar={editavel} salvando={salvar.isPending}

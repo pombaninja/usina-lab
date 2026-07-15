@@ -35,6 +35,11 @@ export const ROTULO_TIPO_ENSAIO: Record<string, string> = {
   rice_dmt: 'Rice / DMT',
 }
 
+/** Rótulo curto do tipo (antes do " — norma") para chips e linhas compactas. */
+export function rotuloCurtoTipo(tipo: string): string {
+  return (ROTULO_TIPO_ENSAIO[tipo] ?? tipo).split(' — ')[0]
+}
+
 export const ROTULO_MATERIAL: Record<string, string> = {
   agregado: 'Agregado',
   cbuq: 'CBUQ',
