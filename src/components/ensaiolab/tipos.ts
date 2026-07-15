@@ -18,6 +18,10 @@ export const TIPOS_CBUQ = ['cbuq_completo', 'marshall', 'teor_betume', 'granulom
 export const SECOES_CBUQ_COMPLETO = ['teor_betume', 'granulometria_mistura', 'resistencia_compressao', 'rice_dmt'] as const
 
 export const ROTULO_TIPO_ENSAIO: Record<string, string> = {
+  // agregado_unificado NÃO entra em TIPOS_AGREGADO: não é criável pelo "+ Novo
+  // ensaio" — nasce só da SELEÇÃO de ensaios de agregado na lista (EnsaiosLabPage);
+  // o rótulo fica aqui para a lista, o detalhe e o laudo renderizarem o tipo.
+  agregado_unificado: 'Laudo unificado de agregados',
   granulometria: 'Granulometria — DNER-ME 083/98',
   lamelaridade: 'Índice de lamelaridade (frações) — DAER/RS-EL 108/01',
   indice_forma: 'Índice de forma (grão a grão) — NBR 7809',

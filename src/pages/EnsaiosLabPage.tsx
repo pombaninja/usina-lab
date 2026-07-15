@@ -105,6 +105,11 @@ function CartaoGrafico({ titulo, vazio, children }: { titulo: string; vazio: boo
 
 const FILTROS_VAZIOS = { de: '', ate: '', material: '', tipo: '', empresa: '', busca: '', situacao: '' }
 
+/** Linha marcável para o ensaio unificado: só AGREGADO, e nunca outro unificado. */
+function selecionavel(e: EnsaioLabLinha): boolean {
+  return e.material_tipo === 'agregado' && e.tipo_ensaio !== 'agregado_unificado'
+}
+
 export default function EnsaiosLabPage() {
   const nav = useNavigate()
   const qc = useQueryClient()
@@ -113,6 +118,10 @@ export default function EnsaiosLabPage() {
   const podeExcluir = podeNoModulo(perfis, 'ensaios_usina', 'avaliador')
 
   const [filtros, setFiltros] = useState(FILTROS_VAZIOS)
+  // Seleção de ensaios de AGREGADO para o ensaio/laudo UNIFICADO (B1). O tipo
+  // agregado_unificado não é selecionável (sem unificado de unificados).
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set())
+  const [erroUnificado, setErroUnificado] = useState('')
   const [novoAberto, setNovoAberto] = useState(false)
   const [novo, setNovo] = useState({
     empresa_id: '', data: new Date().toISOString().slice(0, 10),
@@ -245,6 +254,57 @@ export default function EnsaiosLabPage() {
     onError: (e: Error) => window.alert(e.message),
   })
 
+  // ===== Ensaio/Laudo UNIFICADO de agregados (B1) =====
+  // Checkbox por linha de AGREGADO (coluna visível enquanto o filtro de material
+  // permite agregado); ≥2 selecionados da MESMA empresa geram um ensaio
+  // tipo_ensaio='agregado_unificado' com as REFERÊNCIAS dos componentes em
+  // dados.ensaios — o laudo unificado imprime cada ensaio com número e data.
+  const mostrarSelecao = podeLancar && (filtros.material === '' || filtros.material === 'agregado')
+  // Deriva da lista COMPLETA (não só do filtro): seleção sobrevive a mudanças de
+  // filtro e ignora ids que deixaram de existir (ensaio excluído em paralelo).
+  const linhasSelecionadas = useMemo(() =>
+    (ensaios ?? []).filter(e => selecionados.has(e.id) && selecionavel(e))
+      .sort((a, b) => a.numero - b.numero),
+  [ensaios, selecionados])
+
+  function alternarSelecao(id: string) {
+    setSelecionados(s => {
+      const n = new Set(s)
+      if (n.has(id)) n.delete(id); else n.add(id)
+      return n
+    })
+  }
+
+  const criarUnificado = useMutation({
+    mutationFn: async () => {
+      const sel = linhasSelecionadas
+      if (sel.length < 2) throw new Error('Selecione ao menos 2 ensaios de agregado.')
+      if (new Set(sel.map(e => e.empresa_id)).size > 1) {
+        throw new Error('Todos os ensaios selecionados devem ser da MESMA empresa emissora — o laudo unificado sai em nome de uma única empresa.')
+      }
+      const { data, error } = await supabase.from('ensaios_lab').insert({
+        empresa_id: sel[0].empresa_id,
+        data: new Date().toISOString().slice(0, 10),
+        material_tipo: 'agregado',
+        // Fornecedor/material mistos (cada componente tem o seu) → nulos aqui.
+        fornecedor_id: null, material_lab_id: null, material_nome: null, origem: null,
+        tipo_ensaio: 'agregado_unificado',
+        dados: {
+          ensaios: sel.map(e => ({
+            id: e.id, numero: e.numero, data: e.data, tipo_ensaio: e.tipo_ensaio, material_nome: e.material_nome,
+          })),
+        },
+      }).select('id').single()
+      if (error) throw new Error('Falha ao criar o ensaio unificado: ' + error.message)
+      return (data as { id: string }).id
+    },
+    onSuccess: (id) => {
+      setErroUnificado(''); setSelecionados(new Set())
+      qc.invalidateQueries({ queryKey: ['ensaios_lab'] }); nav(`/ensaios-lab/${id}`)
+    },
+    onError: (e: Error) => setErroUnificado(e.message),
+  })
+
   function confirmarExclusao(id: string) {
     if (window.confirm('Excluir este ensaio de laboratório? Esta ação é irreversível e remove também os laudos não emitidos vinculados.')) {
       excluir.mutate(id)
@@ -324,6 +384,8 @@ export default function EnsaiosLabPage() {
             <select className={inp} value={filtros.tipo} onChange={e => setFiltro('tipo', e.target.value)}>
               <option value="">Todos</option>
               {[...TIPOS_AGREGADO, ...TIPOS_CBUQ].map(t => <option key={t} value={t}>{ROTULO_TIPO_ENSAIO[t]}</option>)}
+              {/* Não-criável (fora de TIPOS_AGREGADO), mas filtrável na lista. */}
+              <option value="agregado_unificado">{ROTULO_TIPO_ENSAIO.agregado_unificado}</option>
             </select></label>
           <label className="text-sm">Empresa
             <select className={inp} value={filtros.empresa} onChange={e => setFiltro('empresa', e.target.value)}>
@@ -435,10 +497,34 @@ export default function EnsaiosLabPage() {
         </div>
       </details>
 
+      {mostrarSelecao && (
+        <div className="flex flex-wrap items-center gap-3">
+          <button className="bg-grp-600 hover:bg-grp-700 text-white rounded px-4 py-2 disabled:opacity-50"
+            disabled={linhasSelecionadas.length < 2 || criarUnificado.isPending}
+            onClick={() => criarUnificado.mutate()}>
+            Gerar ensaio unificado ({linhasSelecionadas.length} selecionados)
+          </button>
+          <p className="text-xs text-slate-500">
+            Marque 2 ou mais ensaios de <b>agregado</b> da mesma empresa para gerar um ensaio/laudo unificado
+            que imprime cada ensaio componente com número e data.
+          </p>
+          {erroUnificado && <p className="text-red-600 text-sm w-full">{erroUnificado}</p>}
+        </div>
+      )}
+
       <table className="w-full bg-white rounded-xl shadow-sm text-sm">
-        <thead><tr className="text-left border-b"><th className="p-3">Nº</th><th>Data</th><th>Material</th><th>Nome</th><th>Origem</th><th>Tipo de ensaio</th><th>Laudo</th><th /></tr></thead>
+        <thead><tr className="text-left border-b">{mostrarSelecao && <th className="p-3 w-8" aria-label="Selecionar" />}<th className="p-3">Nº</th><th>Data</th><th>Material</th><th>Nome</th><th>Origem</th><th>Tipo de ensaio</th><th>Laudo</th><th /></tr></thead>
         <tbody>{filtrados.map(e => (
           <tr key={e.id} className="border-b hover:bg-slate-50">
+            {mostrarSelecao && (
+              <td className="p-3">
+                {selecionavel(e) && (
+                  <input type="checkbox" className="size-4 accent-grp-600 align-middle"
+                    checked={selecionados.has(e.id)} onChange={() => alternarSelecao(e.id)}
+                    aria-label={`Selecionar ensaio ${e.numero} para o unificado`} />
+                )}
+              </td>
+            )}
             <td className="p-3 font-semibold"><Link className="text-blue-700" to={`/ensaios-lab/${e.id}`}>{e.numero}</Link></td>
             <td><Link className="text-blue-700" to={`/ensaios-lab/${e.id}`}>{new Date(e.data + 'T12:00').toLocaleDateString('pt-BR')}</Link></td>
             <td>{ROTULO_MATERIAL[e.material_tipo] ?? e.material_tipo}</td>

@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth, podeNoModulo } from '../lib/auth'
 import { sanitizarDecimal, parseDecimal } from '../lib/formato'
-import { ROTULO_MATERIAL, ROTULO_TIPO_ENSAIO, type FormEnsaioLabProps } from '../components/ensaiolab/tipos'
+import { ROTULO_MATERIAL, ROTULO_TIPO_ENSAIO, rotuloCurtoTipo, type FormEnsaioLabProps } from '../components/ensaiolab/tipos'
 import FornecedorMaterialSelect from '../components/ensaiolab/FornecedorMaterialSelect'
 import VinculosEnsaiosCard, { TIPOS_VINCULAVEIS } from '../components/ensaiolab/VinculosEnsaiosCard'
 import GranulometriaLabForm from '../components/ensaiolab/GranulometriaLabForm'
@@ -44,6 +44,9 @@ interface EnsaioLab {
 }
 
 interface LaudoLinha { id: string; numero: string; status: string; revisao: number }
+
+/** Referência de um ensaio componente gravada em dados.ensaios do unificado. */
+interface ComponenteRef { id: string; numero: number; data: string; tipo_ensaio: string; material_nome: string | null }
 
 // Formulário por tipo de ensaio (agregado da F3-A + CBUQ/CBUQF da F3-B).
 const FORMULARIOS: Record<string, ComponentType<FormEnsaioLabProps> | undefined> = {
@@ -190,13 +193,44 @@ export default function EnsaioLabPage() {
 
   // Aprovação espelha o fluxo diário (EnsaioDetalhePage): avaliador+, refresh do
   // snapshot para a cópia congelada refletir o ensaio ATUAL no momento da aprovação.
+  //
+  // UNIFICADO (agregado_unificado): o snapshot embute CÓPIAS COMPLETAS dos `dados`
+  // atuais de CADA ensaio componente (busca fresca aqui). A emissão deste laudo
+  // congela (trigger fn_bloqueia_ensaio_lab_emitido) SOMENTE a linha unificada —
+  // os componentes NÃO ficam travados e podem mudar depois; o snapshot da
+  // aprovação é, portanto, a verdade impressa (LaudoLabImprimirPage imprime do
+  // snapshot quando aprovado/emitido e ao vivo apenas em rascunho).
   const aprovar = useMutation({
     mutationFn: async (laudoId: string) => {
+      let snapshot: Record<string, unknown> = {
+        tipo_ensaio: ensaio!.tipo_ensaio, material_tipo: ensaio!.material_tipo, dados: ensaio!.dados,
+      }
+      if (ensaio!.tipo_ensaio === 'agregado_unificado') {
+        const refs = ((ensaio!.dados?.ensaios ?? []) as ComponenteRef[])
+        if (!refs.length) throw new Error('Ensaio unificado sem ensaios componentes.')
+        const { data, error } = await supabase.from('ensaios_lab')
+          .select('id, numero, data, tipo_ensaio, material_nome, dados')
+          .in('id', refs.map(r => r.id))
+        if (error) throw new Error('Falha ao buscar os ensaios componentes: ' + error.message)
+        const porId = new Map((data ?? []).map(c => [c.id as string, c]))
+        const faltantes = refs.filter(r => !porId.has(r.id))
+        if (faltantes.length) {
+          throw new Error(`Ensaio componente Nº ${faltantes.map(f => f.numero).join(', ')} não existe mais — remova-o gerando um novo unificado.`)
+        }
+        snapshot = {
+          tipo_ensaio: 'agregado_unificado',
+          material_tipo: 'agregado',
+          componentes: refs.map(r => {
+            const c = porId.get(r.id)! as ComponenteRef & { dados: Record<string, unknown> }
+            return { id: c.id, numero: c.numero, data: c.data, tipo_ensaio: c.tipo_ensaio, material_nome: c.material_nome, dados: c.dados }
+          }),
+        }
+      }
       const { error } = await supabase.from('laudos').update({
         status: 'aprovado',
         avaliador: user!.id,
         aprovado_em: new Date().toISOString(),
-        snapshot: { tipo_ensaio: ensaio!.tipo_ensaio, material_tipo: ensaio!.material_tipo, dados: ensaio!.dados },
+        snapshot,
       }).eq('id', laudoId)
       if (error) throw new Error('Falha ao aprovar o laudo: ' + error.message)
     },
@@ -218,6 +252,10 @@ export default function EnsaioLabPage() {
   if (!ensaio) return <p>Carregando…</p>
 
   const Formulario = FORMULARIOS[ensaio.tipo_ensaio]
+  // Ensaio UNIFICADO de agregados: sem formulário próprio — o corpo é a lista dos
+  // ensaios componentes (chips clicáveis) + o card padrão do laudo.
+  const unificado = ensaio.tipo_ensaio === 'agregado_unificado'
+  const componentesRefs = unificado ? ((ensaio.dados?.ensaios ?? []) as ComponenteRef[]) : []
   const inp = 'border rounded p-2 w-full'
   // Ensaio com laudo EMITIDO é imutável (trigger no banco); a tela desabilita a
   // edição proativamente em vez de deixar o usuário esbarrar no erro do banco.
@@ -244,20 +282,27 @@ export default function EnsaioLabPage() {
         <label className="text-sm">Data
           <input className={inp} type="date" value={cabecalho.data} disabled={!editavel}
             onChange={e => setCabecalho({ ...cabecalho, data: e.target.value })} /></label>
-        <FornecedorMaterialSelect disabled={!editavel}
-          valor={{ fornecedorId: cabecalho.fornecedor_id, materialLabId: cabecalho.material_lab_id }}
-          onChange={v => setCabecalho(c => ({
-            ...c,
-            fornecedor_id: v.fornecedorId, material_lab_id: v.materialLabId,
-            // Sincroniza os TEXTOS com a seleção; trocar a seleção substitui o
-            // texto legado (a linha "cadastro anterior" some junto).
-            origem: v.fornecedorNome ?? '', material_nome: v.materialNome ?? '',
-          }))} />
-        {!cabecalho.fornecedor_id && (cabecalho.material_nome || cabecalho.origem) && (
-          <p className="text-xs text-slate-500 self-end pb-2">
-            Cadastro anterior (texto livre): <b>{cabecalho.material_nome || '—'}</b> · {cabecalho.origem || '—'}
+        {unificado ? (
+          // Materiais MISTOS: fornecedor/material ficam nos ensaios componentes.
+          <p className="text-xs text-slate-500 self-end pb-2 sm:col-span-2">
+            Materiais mistos — fornecedor e material ficam registrados em cada ensaio componente.
           </p>
-        )}
+        ) : (<>
+          <FornecedorMaterialSelect disabled={!editavel}
+            valor={{ fornecedorId: cabecalho.fornecedor_id, materialLabId: cabecalho.material_lab_id }}
+            onChange={v => setCabecalho(c => ({
+              ...c,
+              fornecedor_id: v.fornecedorId, material_lab_id: v.materialLabId,
+              // Sincroniza os TEXTOS com a seleção; trocar a seleção substitui o
+              // texto legado (a linha "cadastro anterior" some junto).
+              origem: v.fornecedorNome ?? '', material_nome: v.materialNome ?? '',
+            }))} />
+          {!cabecalho.fornecedor_id && (cabecalho.material_nome || cabecalho.origem) && (
+            <p className="text-xs text-slate-500 self-end pb-2">
+              Cadastro anterior (texto livre): <b>{cabecalho.material_nome || '—'}</b> · {cabecalho.origem || '—'}
+            </p>
+          )}
+        </>)}
         {materialCbuq && (<>
           <label className="text-sm">Período
             <select className={inp} value={cabecalho.periodo} disabled={!editavel}
@@ -293,7 +338,36 @@ export default function EnsaioLabPage() {
         <VinculosEnsaiosCard ensaio={ensaio} editavel={editavel} />
       )}
 
-      {Formulario && carregado ? (
+      {unificado ? (
+        <section className="bg-white p-4 rounded-xl shadow-sm space-y-3">
+          <h2 className="font-semibold text-lg text-grp-700">Ensaios que compõem este laudo unificado</h2>
+          <p className="text-sm text-slate-500">
+            O laudo imprime a seção analítica de cada ensaio abaixo, indicando número e data.
+            A <b>aprovação</b> congela uma cópia dos dados atuais de cada um — os ensaios componentes
+            continuam editáveis depois (só a linha unificada trava na emissão).
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {componentesRefs.map(r => (
+              <Link key={r.id} to={`/ensaios-lab/${r.id}`}
+                className="inline-flex items-center gap-1 bg-grp-50 hover:bg-grp-100 text-grp-700 border border-grp-200 rounded-full px-3 py-1 text-sm">
+                <b>Nº {r.numero}</b> · {new Date(r.data + 'T12:00').toLocaleDateString('pt-BR')} · {rotuloCurtoTipo(r.tipo_ensaio)} · {r.material_nome ?? '—'}
+              </Link>
+            ))}
+          </div>
+          {!componentesRefs.length && (
+            <p className="text-amber-700 bg-amber-50 p-3 rounded">Este ensaio unificado não referencia nenhum ensaio componente.</p>
+          )}
+          {editavel && (
+            // Sem formulário próprio: este botão persiste o cabeçalho (data),
+            // repassando ensaio.dados intacto (refs dos componentes preservadas).
+            <button className="bg-grp-600 hover:bg-grp-700 text-white rounded px-4 py-2 disabled:opacity-50"
+              disabled={salvar.isPending} onClick={() => salvar.mutate(ensaio.dados ?? {})}>
+              Salvar cabeçalho
+            </button>
+          )}
+          {salvar.isSuccess && !erro && <p className="text-green-700 text-sm">Cabeçalho salvo.</p>}
+        </section>
+      ) : Formulario && carregado ? (
         <Formulario dados={ensaio.dados ?? {}} podeEditar={editavel} salvando={salvar.isPending}
           salvarDados={(dados) => salvar.mutate(dados)} erro={erro} salvo={salvar.isSuccess && !erro} />
       ) : !Formulario ? (
