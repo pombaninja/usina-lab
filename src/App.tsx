@@ -35,6 +35,7 @@ import EnsaioLabPage from './pages/EnsaioLabPage'
 import EnsaioCauqPage from './pages/EnsaioCauqPage'
 import EnsaioDetalhePage from './pages/EnsaioDetalhePage'
 import LaudosListaPage from './pages/LaudosListaPage'
+import LaudosLotePage from './pages/LaudosLotePage'
 import LaudoImprimirPage from './pages/LaudoImprimirPage'
 import LaudoLabImprimirPage from './pages/LaudoLabImprimirPage'
 
@@ -81,6 +82,7 @@ export default function App() {
               <Route path="/ensaios-lab" element={<EnsaiosLabPage />} />
               <Route path="/ensaios-lab/:id" element={<EnsaioLabPage />} />
               <Route path="/laudos" element={<LaudosListaPage />} />
+              <Route path="/laudos/imprimir-lote" element={<LaudosLotePage />} />
               <Route path="/laudos/:id/imprimir" element={<LaudoImprimirPage />} />
               <Route path="/laudos-lab/:id/imprimir" element={<LaudoLabImprimirPage />} />
             </Route>

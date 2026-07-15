@@ -118,9 +118,37 @@ export default function LaudosListaPage() {
   const inp = 'border rounded p-2 w-full'
   const kpi = 'bg-grp-50 rounded-lg p-3'
 
+  // Impressão POR LOTE (B2): o botão leva o CONJUNTO FILTRADO ATUAL (na ordem da
+  // lista) para /laudos/imprimir-lote?ids=… — um Ctrl+P imprime tudo, um laudo
+  // por página. Cap de 50 (MAX_LOTE da página do lote); rascunhos/aprovados
+  // entram como filtrados e saem com a marca "NÃO EMITIDO", consistente com a
+  // impressão individual.
+  const idsLote = filtrados.map(l => l.id)
+  const loteBloqueado = idsLote.length === 0 || idsLote.length > 50
+
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold text-grp-700">Laudos</h1>
+      <div className="flex flex-wrap justify-between items-center gap-2">
+        <h1 className="text-2xl font-bold text-grp-700">Laudos</h1>
+        <div className="text-right">
+          {loteBloqueado ? (
+            <button className="bg-grp-600 text-white rounded px-4 py-2 opacity-50 cursor-not-allowed" disabled>
+              Imprimir lote ({idsLote.length})
+            </button>
+          ) : (
+            <Link to={`/laudos/imprimir-lote?ids=${idsLote.join(',')}`}
+              className="inline-block bg-grp-600 hover:bg-grp-700 text-white rounded px-4 py-2">
+              Imprimir lote ({idsLote.length})
+            </Link>
+          )}
+          {idsLote.length > 50 && (
+            <p className="text-xs text-amber-700 mt-1">O lote imprime no máximo 50 laudos — refine os filtros.</p>
+          )}
+          {idsLote.length === 0 && (
+            <p className="text-xs text-slate-500 mt-1">Nenhum laudo no filtro para imprimir.</p>
+          )}
+        </div>
+      </div>
 
       {/* ===== Filtros (todos opcionais, combinam com E) ===== */}
       <section className="bg-white p-4 rounded-xl shadow-sm space-y-3">
