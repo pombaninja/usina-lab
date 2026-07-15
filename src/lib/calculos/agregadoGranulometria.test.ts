@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { calcularGranulometriaAgregado, combinarGranulometrias, type PeneiraRef, type DeterminacaoAgregado } from './agregadoGranulometria'
+import {
+  calcularGranulometriaAgregado, combinarGranulometrias, aplicarFaixaEspecificacao, retidoLancado,
+  type PeneiraRef, type DeterminacaoAgregado,
+} from './agregadoGranulometria'
 
 // Golden: planilha real, aba "PO DE PEDRA" — 2 determinações
 describe('calcularGranulometriaAgregado - pó de pedra (golden)', () => {
@@ -50,6 +53,60 @@ describe('calcularGranulometriaAgregado - pó de pedra (golden)', () => {
   it('lança erro em PT-BR se todos os pesos totais forem inválidos', () => {
     const invalidas: DeterminacaoAgregado[] = [{ pesoTotal: 0, retidos: {} }, { pesoTotal: -5, retidos: {} }]
     expect(() => calcularGranulometriaAgregado(peneiras, invalidas)).toThrow(/peso total/i)
+  })
+})
+
+describe('aplicarFaixaEspecificacao', () => {
+  const linhas = [
+    { peneira: '3/8"', aberturaMm: 9.53, retidoMedio: 0, pctRetida: 0, pctPassa: 100 },
+    { peneira: 'N. 04', aberturaMm: 4.8, retidoMedio: 2.2, pctRetida: 0.37, pctPassa: 99.63 },
+    { peneira: 'N. 200', aberturaMm: 0.074, retidoMedio: 503.85, pctRetida: 83.74, pctPassa: 16.26 },
+  ]
+
+  it('anota espMin/espMax e julga Conforme/Fora por peneira (grafia tolerante)', () => {
+    const r = aplicarFaixaEspecificacao(linhas, [
+      { peneira: '# 4', passanteMin: 90, passanteMax: 100 },     // casa com 'N. 04'
+      { peneira: 'Nº 200', passanteMin: 20, passanteMax: 40 },   // casa com 'N. 200' → fora (16,26 < 20)
+    ])
+    const n4 = r.linhas.find(l => l.peneira === 'N. 04')!
+    const n200 = r.linhas.find(l => l.peneira === 'N. 200')!
+    const tresOitavos = r.linhas.find(l => l.peneira === '3/8"')!
+    expect(n4.espMin).toBe(90)
+    expect(n4.espMax).toBe(100)
+    expect(n4.conforme).toBe(true)
+    expect(n200.conforme).toBe(false)
+    expect(tresOitavos.conforme).toBeUndefined()   // sem faixa cadastrada → não julgada
+    expect(r.julgadas).toBe(2)
+    expect(r.conforme).toBe(false)
+  })
+
+  it('conforme geral = true quando todas as peneiras julgadas estão na faixa (limites inclusivos)', () => {
+    const r = aplicarFaixaEspecificacao(linhas, [
+      { peneira: 'N. 04', passanteMin: 99.63, passanteMax: 100 },  // limite exato → dentro
+      { peneira: 'N. 200', passanteMin: 10, passanteMax: 16.26 },
+    ])
+    expect(r.conforme).toBe(true)
+    expect(r.julgadas).toBe(2)
+  })
+
+  it('sem nenhuma peneira julgada, conforme geral é false e julgadas 0 (não afirma conformidade vazia)', () => {
+    const r = aplicarFaixaEspecificacao(linhas, [{ peneira: '1/2"', passanteMin: 80, passanteMax: 100 }])
+    expect(r.julgadas).toBe(0)
+    expect(r.conforme).toBe(false)
+    expect(r.linhas.every(l => l.conforme === undefined)).toBe(true)
+  })
+})
+
+describe('retidoLancado', () => {
+  const det: DeterminacaoAgregado = { pesoTotal: 600, retidos: { 'N. 04': 1.8, 'N. 200': 496.6 } }
+
+  it('retorna o retido lançado com cruzamento tolerante de grafia', () => {
+    expect(retidoLancado(det, '# 4')).toBe(1.8)
+    expect(retidoLancado(det, 'Nº 200')).toBe(496.6)
+  })
+
+  it('retorna null (não zero) quando a peneira não foi lançada', () => {
+    expect(retidoLancado(det, '3/4"')).toBeNull()
   })
 })
 

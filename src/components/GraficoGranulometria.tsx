@@ -7,6 +7,11 @@ export default function GraficoGranulometria({ linhas, largura = 640 }: { linhas
     Média: l.pctPassando, 'Trab. mín': l.trabMin, 'Trab. máx': l.trabMax,
     'Esp. mín': l.espMin, 'Esp. máx': l.espMax,
   }))
+  // Séries de faixa só entram (linha + legenda) quando há dados: ensaio sem
+  // especificação mostra só a curva; especificação SEM curva de projeto (ensaio
+  // avulso de agregado) mostra a banda "Esp." sem legenda "Trab." fantasma.
+  const temTrab = linhas.some(l => l.trabMin !== undefined || l.trabMax !== undefined)
+  const temEsp = linhas.some(l => l.espMin !== undefined || l.espMax !== undefined)
   return (
     // w-fit + mx-auto: centralização em bloco, estável também na impressão
     <div className="w-fit mx-auto max-w-full">
@@ -18,10 +23,10 @@ export default function GraficoGranulometria({ linhas, largura = 640 }: { linhas
         <YAxis domain={[0, 100]} label={{ value: '% Passando', angle: -90, position: 'insideLeft' }} />
         <Legend />
         <Line dataKey="Média" stroke="#dc2626" strokeWidth={2} dot />
-        <Line dataKey="Trab. mín" stroke="#2563eb" dot={false} />
-        <Line dataKey="Trab. máx" stroke="#2563eb" dot={false} />
-        <Line dataKey="Esp. mín" stroke="#111827" dot={false} />
-        <Line dataKey="Esp. máx" stroke="#111827" dot={false} />
+        {temTrab && <Line dataKey="Trab. mín" stroke="#2563eb" dot={false} />}
+        {temTrab && <Line dataKey="Trab. máx" stroke="#2563eb" dot={false} />}
+        {temEsp && <Line dataKey="Esp. mín" stroke="#111827" dot={false} />}
+        {temEsp && <Line dataKey="Esp. máx" stroke="#111827" dot={false} />}
       </LineChart>
     </div>
   )
