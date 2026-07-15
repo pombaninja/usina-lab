@@ -6,12 +6,14 @@ import { supabase } from '../lib/supabase'
 import { useAuth, podeNoModulo } from '../lib/auth'
 import { fmt } from '../lib/formato'
 import { ROTULO_MATERIAL, ROTULO_TIPO_ENSAIO, TIPOS_AGREGADO, TIPOS_CBUQ } from '../components/ensaiolab/tipos'
+import FornecedorMaterialSelect, { type SelecaoFornecedorMaterial } from '../components/ensaiolab/FornecedorMaterialSelect'
 import { teorRotarex, gmmRice } from '../lib/calculos/teorBetume'
 import { calcularResistenciaCompressao } from '../lib/calculos/resistenciaCompressao'
 import { contagemPorChave, contagemPorMes, rotuloDataCurta, situacaoLaudos, type SituacaoLaudo } from '../lib/relatorios'
 
 interface EnsaioLabLinha {
   id: string
+  numero: number
   data: string
   empresa_id: string
   material_tipo: string
@@ -114,7 +116,13 @@ export default function EnsaiosLabPage() {
   const [novoAberto, setNovoAberto] = useState(false)
   const [novo, setNovo] = useState({
     empresa_id: '', data: new Date().toISOString().slice(0, 10),
-    material_tipo: 'agregado', material_nome: '', origem: '', tipo_ensaio: 'granulometria',
+    material_tipo: 'agregado', tipo_ensaio: 'granulometria',
+  })
+  // Fornecedor/Origem → Material do cadastro (A1). Os NOMES selecionados vão
+  // sincronizados para material_nome/origem (TEXT) no insert — busca/exibição
+  // legadas continuam funcionando.
+  const [selecao, setSelecao] = useState<SelecaoFornecedorMaterial>({
+    fornecedorId: '', materialLabId: '', fornecedorNome: null, materialNome: null,
   })
   const [erro, setErro] = useState('')
 
@@ -129,7 +137,7 @@ export default function EnsaiosLabPage() {
     queryKey: ['ensaios_lab'],
     queryFn: async () => {
       const { data, error } = await supabase.from('ensaios_lab')
-        .select('id, data, empresa_id, material_tipo, material_nome, origem, tipo_ensaio, dados')
+        .select('id, numero, data, empresa_id, material_tipo, material_nome, origem, tipo_ensaio, dados')
         .order('data', { ascending: false }).order('criado_em', { ascending: false }).limit(1000)
       if (error) throw error
       return (data ?? []) as EnsaioLabLinha[]
@@ -213,8 +221,11 @@ export default function EnsaiosLabPage() {
         empresa_id: empresaSelecionada,
         data: novo.data,
         material_tipo: novo.material_tipo,
-        material_nome: novo.material_nome.trim() || null,
-        origem: novo.origem.trim() || null,
+        fornecedor_id: selecao.fornecedorId || null,
+        material_lab_id: selecao.materialLabId || null,
+        // TEXT sincronizado com os nomes selecionados (exibição/impressão/busca legadas)
+        material_nome: selecao.materialNome,
+        origem: selecao.fornecedorNome,
         tipo_ensaio: novo.tipo_ensaio,
         dados: {},
       }).select('id').single()
@@ -274,11 +285,7 @@ export default function EnsaiosLabPage() {
                 }}>
                 {Object.entries(ROTULO_MATERIAL).map(([v, r]) => <option key={v} value={v}>{r}</option>)}
               </select></label>
-            <label className="text-sm">Nome do material
-              <input className={inp} value={novo.material_nome} placeholder="ex.: Pedra 1 — Pedreira Olímpia"
-                onChange={e => setNovo({ ...novo, material_nome: e.target.value })} /></label>
-            <label className="text-sm">Origem / amostra
-              <input className={inp} value={novo.origem} onChange={e => setNovo({ ...novo, origem: e.target.value })} /></label>
+            <FornecedorMaterialSelect valor={selecao} onChange={setSelecao} />
             <label className="text-sm">Tipo de ensaio
               <select className={inp} value={novo.tipo_ensaio} onChange={e => setNovo({ ...novo, tipo_ensaio: e.target.value })}>
                 {(novo.material_tipo === 'agregado' ? TIPOS_AGREGADO : TIPOS_CBUQ)
@@ -429,10 +436,11 @@ export default function EnsaiosLabPage() {
       </details>
 
       <table className="w-full bg-white rounded-xl shadow-sm text-sm">
-        <thead><tr className="text-left border-b"><th className="p-3">Data</th><th>Material</th><th>Nome</th><th>Origem</th><th>Tipo de ensaio</th><th>Laudo</th><th /></tr></thead>
+        <thead><tr className="text-left border-b"><th className="p-3">Nº</th><th>Data</th><th>Material</th><th>Nome</th><th>Origem</th><th>Tipo de ensaio</th><th>Laudo</th><th /></tr></thead>
         <tbody>{filtrados.map(e => (
           <tr key={e.id} className="border-b hover:bg-slate-50">
-            <td className="p-3"><Link className="text-blue-700" to={`/ensaios-lab/${e.id}`}>{new Date(e.data + 'T12:00').toLocaleDateString('pt-BR')}</Link></td>
+            <td className="p-3 font-semibold"><Link className="text-blue-700" to={`/ensaios-lab/${e.id}`}>{e.numero}</Link></td>
+            <td><Link className="text-blue-700" to={`/ensaios-lab/${e.id}`}>{new Date(e.data + 'T12:00').toLocaleDateString('pt-BR')}</Link></td>
             <td>{ROTULO_MATERIAL[e.material_tipo] ?? e.material_tipo}</td>
             <td>{e.material_nome ?? '—'}</td>
             <td>{e.origem ?? '—'}</td>
